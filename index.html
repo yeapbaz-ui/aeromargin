@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AeroMargin Mars EVA Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a mission console on Mars dust. One dark world, a condensed wordmark, and a single gold
+   line (the way home) as the only bright accent. Green, amber and red are reserved for suit state. */
+:root{
+  color-scheme:dark;
+  --bg:#1c1410; --panel:#271b15; --panel-2:#33241c; --line:#4d382c;
+  --ink:#f3e6d6; --muted:#bba591; --gold:#f0b24a;
+  --ok:#7fe0a2; --warn:#f2c14e; --bad:#ef5a45; --ice:#69c8e8;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.6 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--gold);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 clamp(16px,4vw,40px)}
+h1,h2,h3{font-family:var(--display);text-transform:uppercase;line-height:.95;margin:0;text-wrap:balance;letter-spacing:.01em}
+h2{font-size:clamp(38px,6vw,68px);font-weight:800}
+h3{font-size:24px;font-weight:800;letter-spacing:.03em;line-height:1.05}
+p{margin:0;max-width:66ch}
+.eyebrow{font:500 13px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.muted{color:var(--muted)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.c-ok{color:var(--ok)} .c-warn{color:var(--warn)} .c-bad{color:var(--bad)}
+
+nav{position:sticky;top:0;z-index:5;background:rgba(28,20,16,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:8px 22px;align-items:center;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+nav .brand{font:800 22px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--ink);text-decoration:none;margin-right:auto}
+nav a.l{font:500 13px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-decoration:none}
+nav a.l:hover{color:var(--gold)}
+
+header.hero{padding:clamp(36px,7vw,84px) 0 clamp(28px,5vw,56px);border-bottom:1px solid var(--line);
+  background:radial-gradient(120% 90% at 85% 0%,#3a2218 0%,rgba(28,20,16,0) 60%)}
+.hero h1{overflow-wrap:anywhere;font-size:clamp(46px,12.5vw,164px);font-weight:900;letter-spacing:-.01em;margin:.12em 0 .02em -.03em}
+.hero h1 span{color:var(--gold)}
+.hero .lede{font-size:clamp(20px,2.6vw,30px);line-height:1.25;max-width:26ch;font-weight:500}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px 56px;align-items:start;margin-top:22px}
+.hero-grid p+p{margin-top:14px}
+.facts{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px;padding:0;list-style:none}
+.facts li{border:1px solid var(--line);background:var(--panel);padding:12px 16px;min-width:170px;flex:1 1 170px}
+.facts b{display:block;font:600 26px/1.1 var(--mono);color:var(--ink)}
+.facts span{font-size:14px;color:var(--muted);line-height:1.35;display:block;margin-top:4px}
+
+section{padding:clamp(44px,7vw,88px) 0;border-bottom:1px solid var(--line)}
+.head{display:grid;gap:14px;margin-bottom:30px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px 36px}
+.card{background:var(--panel);border:1px solid var(--line);padding:20px 22px}
+.card h3{margin-bottom:10px}
+.card p{font-size:16px}
+ul.plain{margin:0;padding-left:20px;display:grid;gap:8px;max-width:70ch}
+
+/* console */
+#demo{background:#17100d}
+.console{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:18px;align-items:start}
+.mapbox{background:var(--panel);border:1px solid var(--line);padding:10px}
+#map{display:block;width:100%;height:auto;aspect-ratio:8/5;cursor:crosshair;background:#2a1b14;touch-action:manipulation}
+.layers{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.layers button,.btns button{font:500 13px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);padding:10px 12px;cursor:pointer;border-radius:2px}
+.layers button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.layers button:disabled,.btns button:disabled{opacity:.4;cursor:not-allowed}
+.btns button:not(:disabled):hover,.layers button:not(:disabled):hover{border-color:var(--gold)}
+.legend{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;font:400 12.5px/1.3 var(--mono);color:var(--muted);margin-top:10px}
+.legend #leg-name{grid-column:1/-1;color:var(--ink)}
+.legend #leg-bar{height:10px;border:1px solid var(--line)}
+.keys{display:flex;flex-wrap:wrap;gap:6px 18px;font:400 12.5px/1.3 var(--mono);color:var(--muted);margin-top:10px}
+.keys i{display:inline-block;width:22px;height:0;border-top:3px solid;vertical-align:middle;margin-right:6px}
+.keys i.sq{height:12px;width:12px;border:0}
+#hover{font:400 12.5px/1.45 var(--mono);color:var(--muted);margin-top:10px;min-height:2.9em}
+.side,.main{display:grid;gap:12px}
+.below{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+.visor{border:2px solid var(--ok);border-radius:26px 26px 10px 10px;padding:16px 18px;background:linear-gradient(180deg,rgba(127,224,162,.10),rgba(0,0,0,0) 70%),var(--panel)}
+.visor.s-warn{border-color:var(--warn);background:linear-gradient(180deg,rgba(242,193,78,.12),rgba(0,0,0,0) 70%),var(--panel)}
+.visor.s-shed{border-color:var(--gold);background:linear-gradient(180deg,rgba(240,178,74,.2),rgba(0,0,0,0) 70%),var(--panel)}
+.visor.s-bad{border-color:var(--bad);background:linear-gradient(180deg,rgba(239,90,69,.22),rgba(0,0,0,0) 70%),var(--panel)}
+.visor .tag{font:500 11.5px/1 var(--mono);letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+#st-code{font:800 30px/1 var(--display);letter-spacing:.04em;margin:6px 0 8px;overflow-wrap:anywhere}
+#st-text{font-size:14.5px;line-height:1.4;min-height:5.6em}
+.egress{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:center;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
+#arrow{width:44px;height:44px;transition:transform .25s}
+.egress div{font:500 13px/1.45 var(--mono)}
+.gauges{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line)}
+.gauges>div{background:var(--panel);padding:10px 12px}
+.gauges span{display:block;font:500 11px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.gauges b{font:600 20px/1.3 var(--mono);font-variant-numeric:tabular-nums}
+.gauges small{font:400 12px var(--mono);color:var(--muted)}
+.gauges .wide{grid-column:1/-1}
+.track{height:8px;background:#120c09;border:1px solid var(--line);margin-top:6px;position:relative}
+.track .fill{height:100%}
+.b-ok{background:var(--ok)} .b-warn{background:var(--warn)} .b-bad{background:var(--bad)}
+.track u{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--ink);opacity:.6}
+.ctl{background:var(--panel);border:1px solid var(--line);padding:12px 14px;display:grid;gap:12px}
+.ctl label{display:flex;justify-content:space-between;gap:10px;font:500 12px/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ctl output{color:var(--ink);text-transform:none;letter-spacing:0}
+input[type=range]{width:100%;accent-color:var(--gold);margin:6px 0 0}
+.tgt{background:var(--panel);border:1px solid var(--line);padding:12px 14px}
+.tgt h4{font:800 20px/1.1 var(--display);text-transform:uppercase;letter-spacing:.04em;margin:0}
+.tgt .note{font-size:13.5px;color:var(--muted);margin:2px 0 8px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font:400 13px/1.5 var(--mono)}
+.kv span{color:var(--muted)}
+.verdict{font-size:13.5px;line-height:1.4;margin-top:8px}
+#t-empty{font-size:14px;color:var(--muted)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.btns #go{background:var(--gold);color:#20140c;border-color:var(--gold);font-weight:600}
+#msg{font-size:13.5px;line-height:1.4;color:var(--gold);min-height:1.4em;margin-top:8px}
+.scihead{display:grid;grid-template-columns:30px 1fr 54px 78px;gap:8px;font:500 11px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 10px 6px}
+#sci{display:grid;gap:4px}
+.sci-row{display:grid;grid-template-columns:30px 1fr 54px 78px;gap:8px;align-items:center;text-align:left;width:100%;background:var(--panel);border:1px solid var(--line);color:var(--ink);padding:8px 10px;cursor:pointer;font:400 13px/1.2 var(--mono);border-radius:2px}
+.sci-row:hover,.sci-row.on{border-color:var(--gold)}
+.sci-row .badge{border:1.5px solid var(--ink);text-align:center;font-weight:600;padding:2px 0}
+.sci-row .nm{font-family:var(--body);font-size:14.5px}
+.sci-row .mj,.sci-row .tg,.scihead span:nth-child(n+3){text-align:right}
+.demo-note{font-size:14px;color:var(--muted);margin-top:16px;max-width:90ch}
+
+/* content */
+.scroll{overflow-x:auto;border:1px solid var(--line);background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:680px;font-size:15px;line-height:1.45}
+th,td{text-align:left;vertical-align:top;padding:11px 14px;border-bottom:1px solid var(--line)}
+th{font:500 12px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--panel-2)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600}
+code,.code{font-family:var(--mono);font-size:.88em;color:#f6d7a6;overflow-wrap:anywhere}
+.scale{display:grid;gap:18px}
+.scale .row{display:grid;gap:6px}
+.scale .lab{display:flex;justify-content:space-between;gap:12px;font:500 12.5px/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.scale .bar{height:16px;background:var(--gold)}
+.scale .bar.e{background:#7c6656}
+.scale .v{font:500 13px var(--mono)}
+.eq{background:#120c09;border-left:3px solid var(--gold);padding:14px 16px;font:400 14.5px/1.7 var(--mono);overflow-x:auto;margin:12px 0}
+.eq sub,.eq sup{font-size:.72em}
+.steps{counter-reset:s;display:grid;gap:26px}
+.step{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:14px 40px;padding-top:22px;border-top:1px solid var(--line)}
+.step h3::before{counter-increment:s;content:counter(s) ". ";color:var(--gold)}
+.step p+p{margin-top:10px}
+pre#packet{margin:0;background:#120c09;border:1px solid var(--line);padding:14px 16px;font:400 12.5px/1.5 var(--mono);color:#e9d6bd;overflow-x:auto;max-height:420px}
+.pill{display:inline-block;font:600 12px/1 var(--mono);padding:5px 7px;border:1px solid;border-radius:2px;white-space:nowrap}
+footer{padding:36px 0 56px;color:var(--muted);font-size:14.5px}
+footer .wrap{display:grid;gap:10px}
+footer strong{font:800 26px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+.srcs{columns:2 340px;column-gap:40px;padding-left:20px;margin:0;font-size:15px}
+.srcs li{break-inside:avoid;margin-bottom:8px}
+
+.banner{margin:34px 0 0;position:relative;border:1px solid var(--line)}
+.banner img{display:block;width:100%;height:clamp(170px,27vw,340px);object-fit:cover}
+.banner figcaption{position:absolute;left:0;bottom:0;background:rgba(28,20,16,.86);padding:7px 12px;font:400 12.5px/1.4 var(--mono);color:var(--muted);max-width:100%}
+.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
+.gallery figure{margin:0;background:var(--panel);border:1px solid var(--line);display:grid;grid-template-rows:auto 1fr}
+.gallery img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#120c09}
+.gallery figcaption{padding:12px 14px 14px;font-size:15px;line-height:1.45;display:grid;gap:4px;align-content:start}
+.gallery figcaption a{font:600 13.5px/1.3 var(--mono)}
+.gallery figcaption span{color:var(--muted);font-size:14px}
+.team{list-style:none;margin:6px 0 4px;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.team li{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 12px;font:500 14px/1.2 var(--mono)}
+@media (max-width:980px){
+  .console,.below{grid-template-columns:minmax(0,1fr)}
+  .hero-grid,.step{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}#arrow{transition:none}}
+</style>
+</head>
+<body>
+<nav aria-label="Sections"><div class="wrap">
+  <a class="brand" href="#top">AeroMargin</a>
+  <a class="l" href="#demo">Demo</a><a class="l" href="#problem">Problem</a><a class="l" href="#site">Canyon</a><a class="l" href="#data">Data</a><a class="l" href="#model">Model</a><a class="l" href="#hud">HUD</a><a class="l" href="#limits">Limits</a><a class="l" href="#sources">Sources</a>
+</div></nav>
+
+<header class="hero" id="top"><div class="wrap">
+  <div class="eyebrow">NASA Space Apps Challenge 2026 &middot; Martian Map &middot; Team Cheese Pizza</div>
+  <h1>Aero<span>Margin</span></h1>
+  <div class="hero-grid">
+    <p class="lede">A Mars walking map that knows how much oxygen the way home costs.</p>
+    <div>
+      <p>Radio takes 4 to 24 minutes to reach Earth, one way. An astronaut on a surface walk cannot wait for Mission Control to say turn back.</p>
+      <p class="muted">AeroMargin joins orbital terrain data with a spacesuit oxygen model and draws one line on the helmet visor: the edge of the area you can still walk home from.</p>
+    </div>
+  </div>
+  <ul class="facts">
+    <li><b>4&ndash;24 min</b><span>one-way radio delay between Mars and Earth</span></li>
+    <li><b>0.38 g</b><span>Mars gravity; suit and astronaut weigh 725.6 N together</span></li>
+    <li><b>0.38 &rarr; 2.4+ L/min</b><span>oxygen use from standing still to climbing loose sand</span></li>
+    <li><b>6 data layers</b><span>optical, terrain, thermal, geology, atmosphere, radiation</span></li>
+  </ul>
+  <figure class="banner">
+    <img src="img/banner.jpg" alt="Orbital view of layered Martian terrain in enhanced colour: a smooth tan unit lying against darker blue layered rock">
+    <figcaption>Layered ground in the Valles Marineris region seen by HiRISE in enhanced colour. NASA/JPL-Caltech/UArizona</figcaption>
+  </figure>
+</div></header>
+
+<section id="demo"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Live demo &middot; Habitat console and visor HUD</div>
+    <h2>Plan a walk. Watch the margin.</h2>
+    <p>Click the map to set a target. The green contour is the point of no return: every place you can walk to from where you stand and still reach the airlock before the reserve. Drain the tank or raise fatigue and the contour closes in.</p>
+  </div>
+  <div class="console">
+    <div class="main">
+    <div class="mapbox">
+      <div class="layers" role="group" aria-label="Map layer">
+        <button type="button" data-layer="relief" aria-pressed="true">Relief</button>
+        <button type="button" data-layer="slope" aria-pressed="false">Slope</button>
+        <button type="button" data-layer="thermal" aria-pressed="false">Thermal inertia</button>
+        <button type="button" data-layer="rad" aria-pressed="false">Radiation</button>
+        <button type="button" data-layer="o2" aria-pressed="false">O&#8322; home</button>
+      </div>
+      <canvas id="map" role="img" aria-label="Map of a synthetic canyon floor with the airlock, science targets, routes and the point-of-no-return contour"></canvas>
+      <div class="legend"><span id="leg-name"></span><span id="leg-lo"></span><span id="leg-bar"></span><span id="leg-hi"></span></div>
+      <div class="keys">
+        <span><i style="border-color:var(--ok)"></i>point of no return</span>
+        <span><i style="border-color:var(--gold)"></i>golden line home</span>
+        <span><i style="border-color:#fff"></i>route out</span>
+        <span><i class="sq" style="background:var(--ice)"></i>restricted slope streaks (RSL)</span>
+        <span><i class="sq" style="background:#3a100b;border:1px solid var(--line)"></i>outside the contour</span>
+      </div>
+      <div id="hover">Move over the map to read elevation, slope, thermal inertia, dose rate and oxygen cost for any cell. Map area 10.2 &times; 6.4 km, 40 m cells.</div>
+    </div>
+    <div class="below">
+      <div class="tgt">
+        <div id="t-empty">Click the map or pick a target below to plan a route.</div>
+        <div id="tgt" hidden>
+          <h4 id="t-name"></h4><div class="note" id="t-note"></div>
+          <div class="kv">
+            <span>Route length</span><b id="t-len" class="num"></b>
+            <span>O&#8322; to get there</span><b id="t-out" class="num"></b>
+            <span>O&#8322; home from there</span><b id="t-back" class="num"></b>
+            <span>Margin on arrival</span><b id="t-after" class="num"></b>
+          </div>
+          <div class="verdict" id="t-verdict"></div>
+        </div>
+        <div class="btns">
+          <button type="button" id="go">Walk there</button>
+          <button type="button" id="home">Return to airlock</button>
+          <button type="button" id="reset">Reset EVA</button>
+        </div>
+        <div id="msg" aria-live="polite"></div>
+      </div>
+      <div>
+        <div class="scihead"><span></span><span>Science target</span><span>MERJ</span><span>O&#8322;</span></div>
+        <div id="sci"></div>
+      </div>
+    </div>
+    </div>
+    <div class="side">
+      <div class="visor s-ok" id="visor" aria-live="polite">
+        <div class="tag">Visor HUD state</div>
+        <div id="st-code">NOMINAL_EVA</div>
+        <div id="st-text"></div>
+        <div class="egress">
+          <svg id="arrow" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" fill="none" stroke="#4d382c" stroke-width="2"/><path d="M22 6 L31 28 L22 23 L13 28 Z" fill="#f0b24a"/></svg>
+          <div><span id="v-home"></span><br><span id="v-o2" class="muted"></span></div>
+        </div>
+      </div>
+      <div class="gauges">
+        <div class="wide"><span>Primary O&#8322; tank</span><b id="g-psi">1,500</b> <small>psia &middot; <span id="g-use" style="display:inline;color:var(--ink);letter-spacing:0">342</span> L usable</small>
+          <div class="track"><div class="fill b-ok" id="tankbar" style="width:61%"></div><u style="left:48.98%" title="1,200 psia"></u><u style="left:26.53%" title="650 psia"></u><u style="left:6.53%" title="160 psia"></u></div></div>
+        <div><span>O&#8322; to walk home</span><b id="g-ret">0</b> <small>L</small></div>
+        <div><span>Margin</span><b id="g-margin" class="num c-ok">+0</b> <small>L</small></div>
+        <div><span>Flow, 3 min average</span><b id="g-flow">0.00</b> <small>L/min</small></div>
+        <div><span>Time to reserve</span><b id="g-time">0 h 00 min</b></div>
+        <div><span>Fatigue F / &beta;</span><b><span id="g-fat" style="display:inline;font:inherit;color:inherit;letter-spacing:0">0.20</span> / <span id="g-beta" style="display:inline;font:inherit;color:inherit;letter-spacing:0">0.90</span></b></div>
+        <div><span>EVA clock</span><b id="g-el">0 h 00 min</b></div>
+        <div><span>Walked</span><b id="g-walk">0.00</b> <small>km</small></div>
+        <div><span>Dose this EVA</span><b id="g-dose">0.0</b> <small>&micro;Sv</small></div>
+      </div>
+      <div class="ctl">
+        <div><label for="tank">Tank pressure <output id="tank-out" for="tank"></output></label>
+          <input type="range" id="tank" min="160" max="2450" step="10" value="1500"></div>
+        <div><label for="fat">Fatigue index F <output id="fat-out" for="fat"></output></label>
+          <input type="range" id="fat" min="0" max="100" step="1" value="20"></div>
+      </div>
+    </div>
+  </div>
+  <p class="demo-note">The terrain in this demo is generated in the browser. It is shaped after landforms seen in Melas Chasma (canyon wall, layered mound, dark dunes, block field, fault troughs) but it is not real elevation data. The oxygen model, the thresholds and the point-of-no-return rule are the ones in our specification. MERJ is science gain per litre of oxygen, &times;1000.</p>
+</div></section>
+
+<section id="problem"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">The problem</div>
+    <h2>Today&rsquo;s Mars maps show the ground, not the walk.</h2>
+  </div>
+  <div class="cols">
+    <div class="card"><h3>No one to call</h3><p>With a 4 to 24 minute one-way delay, voice guidance from Earth arrives too late. The suit has to make the turn-back call on its own.</p></div>
+    <div class="card"><h3>Passive layers</h3><p>Portals such as NASA Mars Trek and the USGS mapping hub show relief and geology. They do not know how fast a person burns oxygen on that ground.</p></div>
+    <div class="card"><h3>Uphill is not downhill</h3><p>A slope that was easy on the way out is a climb on the way back. Loose sand can raise the energy cost of a step 2.5 to 3.4 times.</p></div>
+    <div class="card"><h3>Tired people push on</h3><p>NASA BASALT field studies link fatigue and rising CO&#8322; with fixation on the goal: just 40 more metres for the sample. The safe zone must shrink when the astronaut is tired.</p></div>
+  </div>
+</div></section>
+
+<section id="site"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Where we land the project</div>
+    <h2>Valles Marineris, Melas Chasma</h2>
+    <p>The largest known canyon system in the Solar System runs along the Martian equator east of Tharsis and spans about a fifth of the planet&rsquo;s circumference. It formed mainly by stretching and faulting of the crust; water reshaped it later.</p>
+  </div>
+  <div class="cols" style="align-items:start">
+    <div class="card">
+      <h3>To scale with the Grand Canyon</h3>
+      <div class="scale" style="margin-top:14px">
+        <div class="row"><div class="lab"><span>Length</span><span>km</span></div>
+          <div class="bar" style="width:100%"></div><div class="v">Valles Marineris ~4,000</div>
+          <div class="bar e" style="width:11.1%"></div><div class="v muted">Grand Canyon ~445</div></div>
+        <div class="row"><div class="lab"><span>Width</span><span>km</span></div>
+          <div class="bar" style="width:100%"></div><div class="v">~200</div>
+          <div class="bar e" style="width:14.5%"></div><div class="v muted">up to ~29</div></div>
+        <div class="row"><div class="lab"><span>Depth</span><span>km</span></div>
+          <div class="bar" style="width:100%"></div><div class="v">up to ~7</div>
+          <div class="bar e" style="width:25.7%"></div><div class="v muted">~1.8</div></div>
+      </div>
+      <p class="muted" style="font-size:14px;margin-top:14px">Figures from ESA. NASA pages give 3,000&ndash;4,000 km and 7&ndash;9 km because the system&rsquo;s limits and height datum are defined differently.</p>
+    </div>
+    <div>
+      <h3 style="margin-bottom:12px">Why Melas Chasma</h3>
+      <ul class="plain">
+        <li>It is the widest part of the canyon and is densely covered by HiRISE images at about 25 cm per pixel.</li>
+        <li>Hydrated sulfates, a sign of past water, are found across the canyon and especially here.</li>
+        <li>Canyon walls collapse: one landslide is up to ~100 km long. The floor carries layered deposits whose origin is still an open question.</li>
+        <li>Eastern Melas has already been proposed as a human exploration zone: water, science targets within ~100 km, and moderate wind away from the walls.</li>
+        <li>A good zone needs water for life support, strong science targets, varied sites within ~100 km and a flat landing area of at least 5 &times; 5 km.</li>
+      </ul>
+    </div>
+  </div>
+  <h3 style="margin:36px 0 12px">Candidate zones</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Zone</th><th>Where</th><th>Why it matters for a mission</th></tr></thead>
+    <tbody>
+      <tr><td>Melas Chasma</td><td>~10&deg; S, ~285&deg; E</td><td>Widest part of the canyon; layered sulfate deposits (HiRISE)</td></tr>
+      <tr><td>Eastern Melas Chasma</td><td>East part of Melas</td><td>Proposed human exploration zone (McEwen et al., 2015)</td></tr>
+      <tr><td>Noctis Landing</td><td>6&deg;29&prime; S, 92&deg;27&prime; W</td><td>Proposed site where Tharsis meets the canyon; short trips to the walls (Lee et al., NASA NTRS)</td></tr>
+      <tr><td>West Candor Chasma</td><td>Candor Colles</td><td>The most detailed geologic map of Mars from HiRISE; shallow spring-fed lakes once stood here (USGS)</td></tr>
+      <tr><td>Coprates Chasma</td><td>Central canyon</td><td>Many seasonal slope streaks (RSL); HiRISE images of possible sites</td></tr>
+      <tr><td>South of the canyon</td><td>~18.8&deg; S, ~310.6&deg; E</td><td>Candidate human exploration zone, HiRISE image ESP_060148_1610</td></tr>
+    </tbody></table></div>
+  <h3 style="margin:36px 0 12px">What the orbiter sees: HiRISE reference images</h3>
+  <div class="gallery">
+    <figure><img src="img/psp_004054_1675.jpg" alt="Rugged canyon slope with ridges and shadowed gullies" loading="lazy"><figcaption><a href="https://hirise.lpl.arizona.edu/PSP_004054_1675">PSP_004054_1675</a>Melas Chasma: tilted rock layers and wind-carved cliffs.<span>Use: surface and obstacle layer</span></figcaption></figure>
+    <figure><img src="img/esp_044892_1695.jpg" alt="Bright layered canyon wall beside darker rippled ground" loading="lazy"><figcaption><a href="https://hirise.lpl.arizona.edu/ESP_044892_1695">ESP_044892_1695</a>West Melas: gullied wall, dark dunes and sulfate layers.<span>Use: science goal of the demo route</span></figcaption></figure>
+    <figure><img src="img/esp_037494_1685.jpg" alt="Smooth tan deposit in contact with blue layered rock, enhanced colour" loading="lazy"><figcaption><a href="https://hirise.lpl.arizona.edu/ESP_037494_1685">ESP_037494_1685</a>Layered deposits meeting possibly older rock.<span>Use: sampling point</span></figcaption></figure>
+    <figure><img src="img/psp_004384_1705.jpg" alt="Bright layered blocks set in darker material" loading="lazy"><figcaption><a href="https://hirise.lpl.arizona.edu/PSP_004384_1705">PSP_004384_1705</a>Bright blocks 100&ndash;500 m across in dark material.<span>Use: obstacles the HUD routes around</span></figcaption></figure>
+    <figure><img src="img/esp_034883_1645.jpg" alt="A flat-floored trough with rippled sand, crossed by a ridge" loading="lazy"><figcaption><a href="https://hirise.lpl.arizona.edu/ESP_034883_1645">ESP_034883_1645</a>Fault troughs crossed by a wrinkle ridge.<span>Use: scarps and sudden drops</span></figcaption></figure>
+    <figure><img src="img/esp_060148_1610.jpg" alt="Cratered plain with one large dune-filled crater" loading="lazy"><figcaption><a href="https://hirise.lpl.arizona.edu/ESP_060148_1610">ESP_060148_1610</a>Candidate human exploration zone south of the canyon.<span>Use: alternative landing area</span></figcaption></figure>
+  </div>
+  <p class="muted" style="margin-top:14px;font-size:15px;max-width:90ch">All six images: NASA/JPL-Caltech/UArizona. Not shown: <a href="https://static.uahirise.org/pdf/fillathio/ESP_049955_1665.pdf">ESP_049955_1665</a>, dark seasonal streaks on east-facing slopes, which the map marks as restricted zones.</p>
+</div></section>
+
+<section id="data"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Open data</div>
+    <h2>Six layers on one visor</h2>
+    <p>The challenge asks for at least three kinds of data. AeroMargin combines six, all of them open.</p>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Layer</th><th>Data and resolution</th><th>Source</th><th>What the HUD shows</th></tr></thead>
+    <tbody>
+      <tr><td>Optical</td><td>CTX mosaic, 5 m/px, covers 99.5% of Mars; HiRISE, ~25 cm/px for selected areas</td><td><a href="https://murray-lab.caltech.edu/CTX/">Caltech Murray Lab</a>, <a href="https://hirise.lpl.arizona.edu/">HiRISE</a></td><td>Map background and a real view of the target</td></tr>
+      <tr><td>Topography</td><td>MOLA + HRSC blended DEM, 200 m/px; CTX DTMs, 20 m posting; slope and aspect maps</td><td><a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m">USGS</a>, <a href="https://jmars.asu.edu/">JMARS</a>, <a href="https://stac.astrogeology.usgs.gov/docs/data/mars/ctxdtms">CTX DTM</a></td><td>Height profile, steepness, no-go zones</td></tr>
+      <tr><td>Thermal</td><td>THEMIS infrared day and night mosaics, ~100 m/px; TES thermal inertia</td><td>USGS, JMARS, Mars Trek</td><td>Firm rock versus loose sand</td></tr>
+      <tr><td>Geology</td><td>Regional geologic map 1:2,000,000 (CC0); Candor Colles HiRISE map; CRISM and OMEGA spectra</td><td><a href="https://www.usgs.gov/data/geologic-map-valles-marineris-region-mars">USGS</a></td><td>Rock types, sulfates, science targets</td></tr>
+      <tr><td>Atmosphere</td><td>Mars Climate Database v6.1: temperature, pressure and dust by season and hour</td><td><a href="https://www-mars.lmd.jussieu.fr/">MCD, LMD Paris</a></td><td>Pressure, temperature, dust forecast</td></tr>
+      <tr><td>Radiation</td><td>Curiosity RAD surface measurements; MAVEN space weather event catalogue</td><td>MSL RAD, MAVEN</td><td>Dose so far and solar event warning</td></tr>
+    </tbody></table></div>
+  <h3 style="margin:36px 0 12px">Five live feeds named in the specification</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Feed</th><th>Role for the astronaut</th><th>Interface</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://mars.nasa.gov/mars2020/multimedia/raw-images/">Mars 2020 raw images</a></td><td>First-person camera stand-in, previews of waypoints, rock and dune detection</td><td>JSON REST: <code>mars.nasa.gov/rss/api/?feed=raw_images&amp;category=mars2020&amp;feedtype=json</code></td></tr>
+      <tr><td><a href="https://worldview.earthdata.nasa.gov/">NASA Worldview / GIBS</a></td><td>Pattern for the tile engine, time slider and offline tile cache</td><td>OGC WMTS, IndexedDB cache on the airlock tablet</td></tr>
+      <tr><td><a href="https://science.nasa.gov/resource/curiositys-proposed-path-up-mount-sharp/">Curiosity path up Mount Sharp</a></td><td>Reference traverse with real slope profile from clays to sulfates</td><td>HiRISE, CTX, CRISM and HRSC composite</td></tr>
+      <tr><td><a href="https://astrogeology-usgs.hub.arcgis.com/pages/interactive-maps-mars">USGS&ndash;NASA geologic hub</a></td><td>Geologic maps and elevation models for slope and slip risk</td><td>STAC API, Cloud-Optimized GeoTIFF, <code>EPSG:104905</code></td></tr>
+      <tr><td><a href="https://trek.nasa.gov/mars/">NASA Mars Trek WMTS</a></td><td>Ready map tiles: base image, slope, thermal inertia, albedo</td><td><code>trek.nasa.gov/tiles/Mars/EQ/{LayerID}/1.0.0/default/default028mm/{Z}/{Y}/{X}.jpg</code></td></tr>
+    </tbody></table></div>
+  <p class="muted" style="margin-top:14px;font-size:15px;max-width:90ch">Layer IDs used for calibration: <code>Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw</code>, <code>TES_Thermal_Inertia</code>, <code>THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018</code>, <code>curiosity_hirise_mosaic</code>, <code>Gale_CTX_BlockAdj_dd</code>.</p>
+</div></section>
+
+<section id="model"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">How it works</div>
+    <h2>From terrain to litres of oxygen</h2>
+    <p>Simple trackers divide tank volume by a constant. Real oxygen use changes about 3.5 times with slope and soil, so we price every step.</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <div><h3>Metabolic power of each step</h3>
+        <p>Suited mass is 195 kg (80 kg astronaut, 115 kg suit and life support pack). Standing in a pressurised suit costs 115 W. Climbing costs far more than walking flat; gentle descent gives a little back; soft ground adds a sink term scaled by thermal inertia.</p>
+        <p class="muted">Bedrock I = 452 TIU, average regolith ~295, loose wind-blown sand under 180.</p></div>
+      <div class="eq">W<sub>met</sub> = 115 + 0.28&middot;m&middot;g&middot;v + 1.95&middot;m&middot;g&middot;v&middot;max(0, sin&phi;)<br>&nbsp;&nbsp;&minus; 0.45&middot;m&middot;g&middot;v&middot;max(0, &minus;sin&phi;) + 38&middot;(452 / I<sub>cell</sub>)<sup>1.65</sup><br><span class="muted">m&middot;g = 195 kg &times; 3.721 m/s&sup2; = 725.6 N</span></div>
+    </div>
+    <div class="step">
+      <div><h3>Watts to oxygen</h3>
+        <p>One standard litre of oxygen releases 20.2 kJ. At 280 W the suit uses 0.866 L/min. Tank pressure falls about 4.38 psia per litre.</p>
+        <p>The time-left readout never divides by the instant flow. It uses a 3-minute moving average, so the clock does not jump from 2 hours to 7 when the astronaut stops to rest.</p></div>
+      <div class="eq">V<sub>O2</sub> = 0.00297&middot;W<sub>met</sub> + 0.035 &nbsp;L/min<br>T<sub>left</sub> = (V<sub>now</sub> &minus; V<sub>reserve</sub>) / V<sub>EMA, 180 s</sub><br>V<sub>EMA,t</sub> = &alpha;&middot;V<sub>t</sub> + (1 &minus; &alpha;)&middot;V<sub>EMA,t&minus;1</sub>, &nbsp;&alpha; = 1/180</div>
+    </div>
+    <div class="step">
+      <div><h3>Point of no return</h3>
+        <p>Every 5 seconds the suit runs Dijkstra&rsquo;s algorithm backwards from the airlock over the whole grid, with slopes reversed for the return leg. A cell is inside the survival zone only if the oxygen to walk home fits in what is left above the reserve.</p>
+        <p>Fatigue F combines heart rate, heart-rate variability and helmet CO&#8322;. At F = 0.65 the factor &beta; drops from 1.00 to 0.74, holding back 26% more oxygen for a slower, clumsier walk home.</p></div>
+      <div class="eq">E<sub>return</sub>(x &rarr; airlock) &le; &beta;<sub>t</sub>&middot;(V<sub>now</sub> &minus; V<sub>reserve</sub>)<br>&beta;<sub>t</sub> = 1 / (1 + 0.55&middot;F<sub>t</sub>)<br>F<sub>t</sub> = clip(0.40&middot;HR term + 0.35&middot;HRV term + 0.25&middot;pCO<sub>2</sub> / 6.0, 0, 1)</div>
+    </div>
+    <div class="step">
+      <div><h3>Science per litre</h3>
+        <p>Each target carries a geological uncertainty. Sampling one collapses the uncertainty at similar sites, and the suit re-ranks what is left by information gained per litre of oxygen, discounted where radiation is higher. Canyon walls block part of the sky and lower the dose.</p></div>
+      <div class="eq">&Delta;I(x) = 0.5&middot;ln(1 + &sigma;&sup2;(x) / &sigma;&sup2;<sub>noise</sub>)<br>MERJ(x) = &Delta;I(x) / (E<sub>O2</sub>(x)&middot;(1 + &lambda;<sub>rad</sub>&middot;D(x)))<br>D(x) = D<sub>RAD</sub>&middot;&Psi;<sub>sky</sub>(x), &nbsp;&Psi;<sub>sky</sub> &isin; [0.45, 1.0]</div>
+    </div>
+    <div class="step">
+      <div><h3>One packet per second</h3>
+        <p>Suit, tablet and visor share a <code>SuitTelemetryPacket</code> at 1 Hz, in the style used by NASA SUITS student teams. This one is written by the demo above and changes as you walk.</p></div>
+      <pre id="packet" tabindex="0" aria-label="Live telemetry packet from the demo"></pre>
+    </div>
+  </div>
+</div></section>
+
+<section id="hud"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Interface</div>
+    <h2>Two screens, five states</h2>
+    <p>The airlock tablet is for planning. The helmet visor shows only what the moment needs, and removes layers by itself when the astronaut is under stress.</p>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>HUD mode</th><th>What the astronaut sees</th><th>Data behind it</th></tr></thead>
+    <tbody>
+      <tr><td>Route</td><td>Path over the camera view, coloured by steepness</td><td>CTX mosaic, MOLA/HRSC elevation</td></tr>
+      <tr><td>Target</td><td>Science target marker, distance, a preview image of the place</td><td>HiRISE, USGS geologic map, CRISM spectra</td></tr>
+      <tr><td>Obstacles</td><td>Blocks, cliffs and faults highlighted along the path</td><td>HiRISE, CTX DTM, camera frames</td></tr>
+      <tr><td>Safety</td><td>Dose, temperature, pressure, visibility, restricted RSL zones</td><td>Mars Climate Database, RAD and MAVEN, RSL map</td></tr>
+      <tr><td>Mini-map</td><td>Top view with position and track walked</td><td>CTX and THEMIS base</td></tr>
+    </tbody></table></div>
+  <h3 style="margin:36px 0 12px">State machine</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>State</th><th>Trigger</th><th>Visor response</th><th>Sound and touch</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill c-ok">NOMINAL_EVA</span></td><td>Tank &gt; 1,200 psia, CO&#8322; &lt; 4.0 mmHg, margin &gt; 80 L</td><td>All layers, green contour, science ranking</td><td>Quiet click when a sample is logged</td></tr>
+      <tr><td><span class="pill c-warn">SAND_TRAP_WARN</span></td><td>Course crosses thermal inertia &lt; 200 TIU or slope &gt; 18&deg;</td><td>Red hatching, automatic detour over firm slab</td><td>Two-tone warning, 440/587 Hz</td></tr>
+      <tr><td><span class="pill" style="color:var(--gold)">COGNITIVE_SHED</span></td><td>Fatigue &gt; 0.55, CO&#8322; &ge; 4.5 mmHg or heart rate &gt; 150</td><td>Contour shrinks by &beta;, spectral layers hidden, focus on the path home</td><td>Soft cue to slow to 0.65 m/s</td></tr>
+      <tr><td><span class="pill c-bad">PNR_BREACH_ABORT</span></td><td>Usable O&#8322; minus return O&#8322; &le; 45 L, or tank &lt; 650 psia</td><td>Science locked, full-screen golden egress line and timer</td><td>Continuous alarm, beacon to rover or partner</td></tr>
+      <tr><td><span class="pill c-bad">DCS_OR_DEPRESS</span></td><td>Suit pressure &lt; 3.85 psid or manual symptom flag</td><td>Secondary O&#8322; on, regulator raised to 8.2 psid, recompression checklist</td><td>Emergency tone</td></tr>
+    </tbody></table></div>
+  <p class="muted" style="margin-top:14px;font-size:15px;max-width:90ch">The demo runs the first four states. It also shows CAUTION for the yellow band between nominal and abort (tank at or below 1,200 psia or margin under 80 L). Suit depressurisation is not simulated.</p>
+  <h3 style="margin:36px 0 12px">Safety factors in the canyon</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Factor</th><th>What is known</th><th>HUD response</th></tr></thead>
+    <tbody>
+      <tr><td>Radiation</td><td>Curiosity RAD measured ~0.64 mSv/day on the surface and ~1.84 mSv/day in transit. During a solar particle event the rate can exceed 500 &micro;Sv/h.</td><td>Dose counter per walk and per mission; solar event warning; nearest wall shadow</td></tr>
+      <tr><td>Pressure and temperature</td><td>Mean pressure ~6.75 hPa, about 0.67% of Earth&rsquo;s; mean surface temperature ~210 K (&minus;63 &deg;C). Pressure rises toward the canyon floor.</td><td>Outside temperature and expected change along the route</td></tr>
+      <tr><td>Dust and visibility</td><td>The MARCI camera saw low hazes confined by the canyon relief in the landslide season.</td><td>Visibility indicator; switch from camera to terrain map when the picture is poor</td></tr>
+      <tr><td>Slopes and landslides</td><td>Walls slump; blocks 100&ndash;500 m across lie on the floor of Melas.</td><td>Route coloured by steepness from the elevation model</td></tr>
+      <tr><td>Seasonal streaks (RSL)</td><td>41 RSL sites studied in the central and eastern canyon, the densest known on Mars; they occur on slopes steeper than ~25&deg; and raise planetary protection questions.</td><td>Restricted-access marker on RSL slopes</td></tr>
+      <tr><td>Wind</td><td>Estimated as moderate in eastern Melas away from the walls.</td><td>Wind speed shown near the walls</td></tr>
+    </tbody></table></div>
+</div></section>
+
+<section id="limits"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">What this is and is not</div>
+    <h2>Honest limits</h2>
+  </div>
+  <div class="cols">
+    <ul class="plain">
+      <li>The demo terrain is synthetic. Real MOLA, HRSC and CTX elevation tiles for Melas Chasma are the next step.</li>
+      <li>Soil and slope coefficients were set from Gale crater data (Curiosity, REMS thermal inertia, Mount Sharp traverse), not from the canyon.</li>
+      <li>Radiation figures come from Gale crater near solar maximum. Treat them as an estimate for Mars in general.</li>
+      <li>Whether the thicker air column on the canyon floor shields better than the plateau is a hypothesis. No one has measured it inside the canyon.</li>
+    </ul>
+    <ul class="plain">
+      <li>No rover has worked inside Valles Marineris, so every photograph here is taken from orbit. First-person frames would come from Curiosity and Perseverance and be labelled as analogues.</li>
+      <li>Walking speed of 0.8 m/s, the braking penalty on descents steeper than 12&deg;, the radiation weight in MERJ and the target uncertainties are demo assumptions.</li>
+      <li>Canyon dimensions differ between sources (3,000&ndash;4,000 km long, 7&ndash;9 km deep).</li>
+      <li>Planned build: Python and GDAL for data, a TypeScript or Rust core for routing in under 15 ms per frame, React with MapLibre and WebXR for tablet and visor.</li>
+    </ul>
+  </div>
+</div></section>
+
+<section id="sources"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">References</div>
+    <h2>Sources and credits</h2>
+    <p class="muted">Data collected on 14 November 2026.</p>
+  </div>
+  <ol class="srcs">
+    <li><a href="https://www.esa.int/Science_Exploration/Space_Science/Mars_Express/Mars_Express_peers_into_Mars_Grand_Canyon">ESA: Mars Express peers into Mars&rsquo; Grand Canyon</a></li>
+    <li><a href="https://science.nasa.gov/resource/valles-marineris-the-grand-canyon-of-mars">NASA: Valles Marineris, the Grand Canyon of Mars (PIA04304)</a></li>
+    <li><a href="https://science.nasa.gov/resource/grand-canyons-of-earth-and-mars/">NASA: Grand Canyons of Earth and Mars</a></li>
+    <li><a href="https://themis.asu.edu/vallesspecial">THEMIS, ASU: Valles Marineris, a Martian rift zone</a></li>
+    <li><a href="https://hirise.lpl.arizona.edu/">HiRISE, University of Arizona: image catalogue</a></li>
+    <li><a href="https://www.jpl.nasa.gov/news/mars-canyons-study-adds-clues-about-possible-water/">JPL: Mars canyons study adds clues about possible water</a></li>
+    <li><a href="https://www.jpl.nasa.gov/images/pia20756-sites-with-seasonal-streaks-on-slopes-in-mars-canyons/">JPL: Sites with seasonal streaks on slopes in Mars canyons (PIA20756)</a></li>
+    <li><a href="https://www.usgs.gov/data/geologic-map-valles-marineris-region-mars">USGS: Geologic map of the Valles Marineris region</a></li>
+    <li><a href="https://www.usgs.gov/news/new-usgs-map-mars-most-detailed-one-yet">USGS: New map of Mars is most detailed one yet</a></li>
+    <li><a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m">USGS: MOLA and HRSC blended DEM, 200 m</a></li>
+    <li><a href="https://murray-lab.caltech.edu/CTX/">Caltech Murray Lab: Global CTX Mosaic</a></li>
+    <li><a href="https://jmars.asu.edu/">JMARS, Arizona State University</a></li>
+    <li><a href="https://trek.nasa.gov/">NASA Solar System Treks</a> and <a href="https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars">Mars Trek WMTS API</a></li>
+    <li><a href="https://ode.rsl.wustl.edu/mars/">Mars Orbital Data Explorer</a></li>
+    <li><a href="https://www-mars.lmd.jussieu.fr/">Mars Climate Database, LMD</a></li>
+    <li><a href="https://www.space.com/23875-mars-radiation-life-manned-mission.html">Space.com: Radiation on Mars manageable, Curiosity reveals</a></li>
+    <li><a href="https://www.space.com/mars-grand-canyon-valles-marineris-exploration">Space.com: Valles Marineris exploration</a></li>
+    <li><a href="https://www.nasa.gov/sites/default/files/atoms/files/mars-c-abstracts_in_order_of_presentation10242015_0.pdf">First Landing Site / Exploration Zone Workshop, 2015 (abstracts)</a></li>
+    <li><a href="https://ntrs.nasa.gov/api/citations/20150021128/downloads/20150021128.pdf">Lee et al.: Noctis Landing, NASA NTRS</a></li>
+    <li><a href="https://mars.nasa.gov/mars2020/multimedia/raw-images/">NASA Mars 2020 raw images</a></li>
+    <li>Suit and physiology: NASA xEMU PLSS Oxygen Regulator (ICES-2023-0007781); NASA EMU LSS/SSA Data Book (JSC-E-DAA-TN55224); NASA TP-2010-216115, Planetary Suit Metabolic Costs; NASA BASALT EVA physiology (Frontiers in Physiology, 2022); Gale crater REMS thermal inertia (PMC4508907); MSL RAD surface measurements.</li>
+  </ol>
+  <p class="muted" style="margin-top:22px;font-size:15px;max-width:90ch">Image credits: all photographs on this page are HiRISE images, NASA/JPL-Caltech/UArizona. Data credits for the planned build: HRSC, ESA/DLR/FU Berlin, CC BY-SA 3.0 IGO; CTX mosaic, NASA/JPL/MSSS/The Murray Lab; MOLA data is CC0.</p>
+</div></section>
+
+<footer><div class="wrap">
+  <strong>Team Cheese Pizza</strong>
+  <ul class="team" aria-label="Team members">
+    <li>Sabit Abdulaziz</li><li>Murataly Yersultan</li><li>Kudaibergen Tomiris</li><li>Muridov Mikael</li><li>Apbaz Yernur</li><li>Alpamyssova Adelya</li>
+  </ul>
+  <span>AeroMargin EVA Suite, built for the NASA Space Apps Challenge 2026.</span>
+  <span>A student project that uses public NASA, ESA and USGS data. It is not an official NASA product and carries no NASA insignia.</span>
+</div></footer>
+<script src="app.js" charset="utf-8"></script>
+</body>
+</html>
