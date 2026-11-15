@@ -11,17 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install GDAL
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin && pip install --quiet numpy tifffile
       - name: Cut the window
         run: |
           gdalinfo --version
-          bash tools/fetch_terrain.sh survey 286.5 -10.2 300000 180000 200 2>&1 | tee fetch.log
-          cp fetch.log data/terrain/survey/
+          set -o pipefail
+          bash tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200 100 2>&1 | tee fetch.log
+          cp fetch.log data/terrain/melas/
       - name: Publish to the terrain-data branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q -b terrain-data
           git add -f data/terrain
-          git commit -q -m "Terrain survey window from USGS-hosted rasters"
+          git commit -q -m "Melas Chasma terrain window from USGS-hosted rasters"
           git push -f origin terrain-data
