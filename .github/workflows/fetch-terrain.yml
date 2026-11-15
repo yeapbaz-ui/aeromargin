@@ -1,0 +1,27 @@
+name: Fetch terrain window
+on:
+  push:
+    branches: [terrain-fetch]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GDAL
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin
+      - name: Cut the window
+        run: |
+          gdalinfo --version
+          bash tools/fetch_terrain.sh survey 286.5 -10.2 300000 180000 200 2>&1 | tee fetch.log
+          cp fetch.log data/terrain/survey/
+      - name: Publish to the terrain-data branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -b terrain-data
+          git add -f data/terrain
+          git commit -q -m "Terrain survey window from USGS-hosted rasters"
+          git push -f origin terrain-data
