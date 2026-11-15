@@ -134,15 +134,19 @@ var AeroCore = (function () {
     return { z: z, I: I, slope: slope, psi: psi, block: block, hazard: hazard, rsl: rsl, dune: dune, land: land, block0: new Uint8Array(block), hab: HAB.y * W + HAB.x };
   }
 
-  function metW(T, a, b, d, v) {
-    var dz = T.z[b] - T.z[a], s = dz / Math.hypot(d, dz);
-    var Wm = P.Wbase + P.c1 * MG * v + P.cup * MG * v * Math.max(0, s) + P.Wsink * Math.pow(P.Ibed / T.I[b], P.exp);
+  // metabolic power in watts for a step with sine of slope s, on soil of thermal inertia I, at speed v
+  function metWraw(s, I, v) {
+    var Wm = P.Wbase + P.c1 * MG * v + P.cup * MG * v * Math.max(0, s) + P.Wsink * Math.pow(P.Ibed / I, P.exp);
     if (s < 0) {
       var sd = -s;
       Wm -= P.cdown * MG * v * Math.min(sd, 0.1736);
       if (sd > 0.2079) Wm += P.brake * MG * v * (sd - 0.2079);
     }
     return Math.max(P.Wbase, Wm);
+  }
+  function metW(T, a, b, d, v) {
+    var dz = T.z[b] - T.z[a];
+    return metWraw(dz / Math.hypot(d, dz), T.I[b], v);
   }
   function flow(Wm) { return P.k * Wm + P.leak; } // L/min STP
   function edge(T, a, b, d, v) {
@@ -205,7 +209,7 @@ var AeroCore = (function () {
   }
   function beta(F) { return 1 / (1 + P.kappa * F); }
 
-  return { W: W, H: H, CELL: CELL, N: N, P: P, MG: MG, HAB: HAB, MOUND: MOUND, build: build, metW: metW, flow: flow,
+  return { W: W, H: H, CELL: CELL, N: N, P: P, MG: MG, HAB: HAB, MOUND: MOUND, build: build, metW: metW, metWraw: metWraw, flow: flow,
     edge: edge, dijkstra: dijkstra, chain: chain, beta: beta, sstep: sstep };
 })();
 if (typeof module !== 'undefined') module.exports = AeroCore;
@@ -227,6 +231,64 @@ if (typeof document !== 'undefined') (function () {
   var bctx = baseCv.getContext('2d'), octx = overCv.getContext('2d');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var PEN_TERRAIN = 4;            // safest route: caution terrain costs 4x
+
+  /* ---------- settings, notifications, sound ---------- */
+  var SET_KEY = 'aeromargin.settings.v1';
+  var cfg = { theme: 'dark', sound: true, vol: 0.5, callsign: 'EV-1', stride: 0.6, anim: 1 };
+  (function () {
+    try {
+      var o = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
+      if (o.theme === 'light' || o.theme === 'dark') cfg.theme = o.theme;
+      if (typeof o.sound === 'boolean') cfg.sound = o.sound;
+      if (o.vol >= 0 && o.vol <= 1) cfg.vol = +o.vol;
+      if (typeof o.callsign === 'string' && o.callsign.trim()) cfg.callsign = o.callsign.trim().slice(0, 12);
+      if (o.stride >= 0.4 && o.stride <= 0.9) cfg.stride = +o.stride;
+      if (o.anim === 1 || o.anim === 2 || o.anim === 4) cfg.anim = o.anim;
+    } catch (e) {}
+  })();
+  P.stride = cfg.stride;
+  function saveCfg() { try { localStorage.setItem(SET_KEY, JSON.stringify(cfg)); } catch (e) {} }
+  function cssv(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function toast(text, kind) {
+    var box = $('toasts'); if (!box) return;
+    var t = el('div', 'toast ' + (kind || ''), text); t.setAttribute('role', 'status'); box.appendChild(t);
+    while (box.children.length > 3) box.removeChild(box.firstChild);
+    setTimeout(function () { t.classList.add('out'); setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 320); }, 4600);
+  }
+  // Sound cues follow the HUD state machine: two-tone 440/587 Hz for warnings, a short alarm for abort, a click for a sample.
+  var audio = null;
+  var SFX = {
+    click: [[880, 0, 0.06, 'sine']], ok: [[660, 0, 0.1, 'sine'], [990, 0.11, 0.16, 'sine']],
+    warn: [[440, 0, 0.16, 'triangle'], [587, 0.18, 0.22, 'triangle']], shed: [[330, 0, 0.4, 'sine']],
+    abort: [[880, 0, 0.13, 'square'], [880, 0.22, 0.13, 'square'], [880, 0.44, 0.13, 'square']],
+    hazard: [[520, 0, 0.1, 'triangle'], [390, 0.12, 0.18, 'triangle']]
+  };
+  function sfx(name) {
+    if (!cfg.sound || cfg.vol <= 0 || !SFX[name]) return;
+    var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try {
+      if (!audio) audio = new AC();
+      if (audio.state === 'suspended') audio.resume();
+      var t0 = audio.currentTime + 0.02;
+      SFX[name].forEach(function (n) {
+        var o = audio.createOscillator(), g = audio.createGain(), at = t0 + n[1], peak = cfg.vol * (n[3] === 'square' ? 0.12 : 0.25);
+        o.type = n[3]; o.frequency.value = n[0];
+        g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, at + n[2]);
+        o.connect(g); g.connect(audio.destination); o.start(at); o.stop(at + n[2] + 0.03);
+      });
+    } catch (e) {}
+  }
+  var logKey = '';
+  function logEvent(text, kind) { st.log.unshift({ t: st.elapsed, text: text, kind: kind || '' }); if (st.log.length > 60) st.log.pop(); logKey = ''; }
+  function download(name, text) {
+    var a = el('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); if (a.parentNode) a.parentNode.removeChild(a); }, 800);
+  }
+  function fit(c) { // size a chart canvas to its box at the device pixel ratio; returns [context, width, height] in CSS pixels
+    var dpr = Math.min(2, window.devicePixelRatio || 1), w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    var g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h); return [g, w, h];
+  }
 
   function findSpot(x, y) { // nearest walkable, gentle cell
     for (var r = 0; r < 30; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
@@ -253,6 +315,8 @@ if (typeof document !== 'undefined') (function () {
   var mode = 'safe';              // 'safe' = safest route, 'fast' = lowest oxygen cost
   var clickMode = 'B';            // what a map tap sets: 'A', 'B' or 'haz'
   var vlang = /^(ru|kk|uk|be)/i.test(navigator.language || '') ? 'ru' : 'en';
+  var lastCode = '', lastD = null, profKey = '', prof = null;
+  var view = { z: 1, x: 0, y: 0 };  // map zoom and the top-left corner of the visible part, in canvas pixels
 
   /* ---------- crew hazard reports: storage ---------- */
   var LS_KEY = 'aeromargin.hazards.v1';
@@ -279,7 +343,7 @@ if (typeof document !== 'undefined') (function () {
       id: String(z.id || '').replace(/[^\w-]/g, '').slice(0, 40) || uid(), x: x, y: y,
       r: clamp(Math.round(+z.r) || 3, 1, 12), type: HZ_TYPES.hasOwnProperty(z.type) ? z.type : 'other',
       level: clamp(Math.round(+z.level) || 2, 1, 3), desc: String(z.desc || '').slice(0, 300),
-      by: String(z.by || 'EV-?').slice(0, 20), t: +z.t || 0, photo: ph, seed: !!z.seed, local: !!z.local
+      by: String(z.by || 'EV-?').slice(0, 20), t: +z.t || 0, photo: ph, seed: !!z.seed, local: !!z.local, conf: clamp(Math.round(+z.conf) || 0, 0, 99)
     };
   }
   function loadLocal() {
@@ -305,11 +369,20 @@ if (typeof document !== 'undefined') (function () {
       zones.forEach(function (z) { if (z.local && !seen[z.id]) { list.push(z); pushZone(z); } }); // reports made while offline
       list.sort(function (a, b) { return a.t - b.t; });
       dbState = 'online';
-      if (JSON.stringify(list) !== JSON.stringify(zones)) setZones(list); else zoneList();
+      if (JSON.stringify(list) !== JSON.stringify(zones)) setZones(list, false, true); else zoneList();
     }).catch(function () { dbState = 'offline'; zoneList(); });
   }
-  function setZones(list, noSave) {
+  function setZones(list, noSave, announce) {
     if (st.walking) { pendingZones = list; return; }
+    if (announce) { // a report made by someone else has arrived
+      var known = {}; zones.forEach(function (z) { known[z.id] = 1; });
+      var fresh = list.filter(function (z) { return !known[z.id]; });
+      if (fresh.length) {
+        var f = fresh[fresh.length - 1];
+        toast('New hazard report from ' + f.by + ': ' + HZ_TYPES[f.type][0] + (fresh.length > 1 ? ' (+' + (fresh.length - 1) + ' more)' : '') + '. Routes updated.', f.level === 3 ? 'bad' : 'warn');
+        sfx('hazard'); logEvent('Hazard report received from ' + f.by + ': ' + HZ_TYPES[f.type][0], f.level === 3 ? 'bad' : 'warn');
+      }
+    }
     zones = list; if (!noSave) saveLocal();
     applyZones(); update();
   }
@@ -339,12 +412,13 @@ if (typeof document !== 'undefined') (function () {
     });
     zver++;
     ret = { nom: C.dijkstra(T, T.hab, P.vNom, true), shed: C.dijkstra(T, T.hab, P.vShed, true) };
-    outKey = ''; safeKey = '';
+    outKey = ''; safeKey = ''; paintedKey = '';
   }
 
   function reset() {
     SCI = SCI0.map(function (s) { return { id: s.id, name: s.name, ru: s.ru, note: s.note, cls: s.cls, s2: s.s2, cell: findSpot(s.x, s.y), done: false }; });
-    st = { V: 1500 / P.psiPerL, F: 0.2, pos: T.hab, target: -1, sci: null, elapsed: 0, dose: 0, walked: 0, walking: false, msg: '', walkCells: null, walkIdx: 0, ping: -1, pingT: 0 };
+    st = { V: 1500 / P.psiPerL, F: 0.2, pos: T.hab, target: -1, sci: null, elapsed: 0, dose: 0, walked: 0, walking: false, msg: '', walkCells: null, walkIdx: 0, ping: -1, pingT: 0, trail: [T.hab], log: [], stopReq: false, scrub: -1 };
+    lastCode = ''; profKey = ''; logEvent('EVA started at the airlock with 1,500 psia.');
     st.ema = C.flow(C.metW(T, T.hab, T.hab + 1, CELL, P.vNom));
     st.W = 0;
     $('tank').value = 1500; $('fat').value = 20;
@@ -560,6 +634,7 @@ if (typeof document !== 'undefined') (function () {
     var forced = D.shed || D.breach, layer = forced ? 'relief' : userLayer;
     var key = layer + (layer === 'o2' ? (D.shed ? 1 : 0) : '') + ':' + zver;
     if (key !== paintedKey) { paintBase(layer); paintedKey = key; }
+    ctx.setTransform(view.z, 0, 0, view.z, -view.x * view.z, -view.y * view.z);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(baseCv, 0, 0, W * S, H * S);
     // overlay: outside-contour shading + RSL zones
@@ -590,6 +665,12 @@ if (typeof document !== 'undefined') (function () {
     }
     ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(12,30,18,.8)'; ctx.lineWidth = 6; ctx.stroke();
     ctx.strokeStyle = D.breach ? '#ef5a45' : '#7fe0a2'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+    // track already walked
+    if (st.trail.length > 1) {
+      ctx.save(); ctx.lineJoin = 'round'; ctx.setLineDash([2, 7]); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(cx(st.trail[0]), cy(st.trail[0])); for (var ti = 1; ti < st.trail.length; ti++) ctx.lineTo(cx(st.trail[ti]), cy(st.trail[ti]));
+      ctx.stroke(); ctx.restore();
+    }
     // routes
     if (D.tgt && !forced) {
       strokePath(D.tgt.back, '#f0b24a', 2.5, [8, 8]);
@@ -619,7 +700,7 @@ if (typeof document !== 'undefined') (function () {
     var ax = cx(st.pos), ay = cy(st.pos);
     ctx.save(); ctx.beginPath(); ctx.arc(ax, ay, 20, 0, 6.3); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.beginPath(); ctx.arc(ax, ay, 10, 0, 6.3); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#1c1410'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
-    if (st.pos !== T.hab) label('EV-1', ax + 28, ay, '#fff');
+    if (st.pos !== T.hab) label(cfg.callsign, ax + 28, ay, '#fff');
     // route pins: A is where the walk starts (the astronaut), B is the destination
     if (st.target >= 0 && !forced) { pin('B', cx(st.target), cy(st.target), '#f0b24a'); if (!st.walking) pin('A', ax, ay, '#69c8e8'); }
     // highlight ring for "nearest hazard" and "locate"
@@ -627,12 +708,18 @@ if (typeof document !== 'undefined') (function () {
       ctx.save(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx(st.ping), cy(st.ping), 30, 0, 6.3); ctx.stroke();
       ctx.strokeStyle = '#69c8e8'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.arc(cx(st.ping), cy(st.ping), 44, 0, 6.3); ctx.stroke(); ctx.restore();
     }
-    // map furniture: scale bar and north arrow
-    var bx = 28, by = H * S - 30, km = 1000 / CELL * S;
-    ctx.save(); ctx.strokeStyle = '#f3e6d6'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(bx, by - 7); ctx.lineTo(bx, by); ctx.lineTo(bx + km, by); ctx.lineTo(bx + km, by - 7); ctx.stroke(); ctx.restore();
-    label('1 km', bx + km + 10, by - 3, '#f3e6d6');
-    label('N ↑', W * S - 28, 32, '#f3e6d6', 'right');
     label('CANYON WALL', W * S / 2, 32, 'rgba(243,230,214,.8)', 'center');
+    // the point under the cursor on the elevation profile
+    if (st.scrub >= 0 && !forced) {
+      ctx.save(); ctx.beginPath(); ctx.arc(cx(st.scrub), cy(st.scrub), 10, 0, 6.3); ctx.fillStyle = '#69c8e8'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#1c1410'; ctx.stroke(); ctx.restore();
+    }
+    // map furniture, drawn in screen space so it stays put while the map is zoomed
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    var barM = view.z >= 2.5 ? 200 : 1000, bx = 28, by = H * S - 30, km = barM / CELL * S * view.z;
+    ctx.save(); ctx.strokeStyle = '#f3e6d6'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(bx, by - 7); ctx.lineTo(bx, by); ctx.lineTo(bx + km, by); ctx.lineTo(bx + km, by - 7); ctx.stroke(); ctx.restore();
+    label(barM === 1000 ? '1 km' : '200 m', bx + km + 10, by - 3, '#f3e6d6');
+    label('N ↑', W * S - 28, 32, '#f3e6d6', 'right');
+    if (view.z > 1) label('×' + view.z.toFixed(1), W * S - 28, 62, '#f3e6d6', 'right');
   }
 
   /* ---------- AR visor preview: first-person view along the active route (concept for a helmet display) ---------- */
@@ -674,7 +761,7 @@ if (typeof document !== 'undefined') (function () {
     actx.strokeStyle = 'rgba(20,10,6,.7)'; actx.lineWidth = 12; actx.stroke();
     actx.strokeStyle = toB ? '#ffffff' : '#f0b24a'; actx.lineWidth = 6; actx.stroke(); actx.restore();
     if (last && path.length > 1) { // beacon at the far end of the visible route
-      actx.save(); actx.strokeStyle = toB ? '#f0b24a' : '#f0b24a'; actx.lineWidth = 3; actx.beginPath(); actx.moveTo(last[0], last[1]); actx.lineTo(last[0], last[1] - 46); actx.stroke();
+      actx.save(); actx.strokeStyle = '#f0b24a'; actx.lineWidth = 3; actx.beginPath(); actx.moveTo(last[0], last[1]); actx.lineTo(last[0], last[1] - 46); actx.stroke();
       actx.fillStyle = '#f0b24a'; actx.beginPath(); actx.arc(last[0], last[1] - 54, 9, 0, 6.3); actx.fill(); actx.restore();
     }
     // visor frame and readouts
@@ -751,7 +838,7 @@ if (typeof document !== 'undefined') (function () {
       : dbState === 'online' ? 'Shared database connected. Reports from every crew member appear here.'
       : dbState === 'offline' ? 'Shared database unreachable. Showing the local copy; new reports are sent when it is back.' : 'Connecting to the shared database…';
     set('db-note', note);
-    var key = zver + ':' + zones.map(function (z) { return z.id + (z.local ? 'L' : ''); }).join(',') + ':' + Math.floor(Date.now() / 60000);
+    var key = zver + ':' + zones.map(function (z) { return z.id + (z.local ? 'L' : '') + z.conf; }).join(',') + ':' + Math.floor(Date.now() / 60000);
     if (key === zlistKey) return; zlistKey = key;
     var box = $('zlist'); box.textContent = '';
     if (!zones.length) { box.appendChild(el('p', 'note', 'No hazard reports yet.')); return; }
@@ -759,19 +846,25 @@ if (typeof document !== 'undefined') (function () {
       var row = el('div', 'zrow'), main = el('div', 'zmain');
       row.appendChild(el('i', 'dot ' + (z.level === 3 ? 'b-bad' : 'b-warn')));
       main.appendChild(el('b', '', HZ_TYPES[z.type][0] + ' · ' + LEVELS[z.level]));
-      main.appendChild(el('span', 'muted', z.by + ' · ' + ago(z.t) + ' · radius ' + z.r * CELL + ' m' + (z.local && DB_URL ? ' · not synced yet' : '')));
+      main.appendChild(el('span', 'muted', z.by + ' · ' + ago(z.t) + ' · radius ' + z.r * CELL + ' m' + (z.conf ? ' · confirmed ×' + z.conf : '') + (z.local && DB_URL ? ' · not synced yet' : '')));
       if (z.desc) main.appendChild(el('p', '', z.desc));
       row.appendChild(main);
       if (z.photo) { var im = el('img'); im.src = z.photo; im.alt = 'Photo attached to the report'; row.appendChild(im); }
-      var bt = el('div', 'zbtn'), loc = el('button', '', 'Locate'), rm = el('button', '', 'Remove');
-      loc.type = rm.type = 'button';
+      var bt = el('div', 'zbtn'), loc = el('button', '', 'Locate'), cf = el('button', '', 'Still there'), rm = el('button', '', 'Remove');
+      loc.type = rm.type = cf.type = 'button'; cf.title = 'Confirm that you have seen this hazard too';
+      cf.addEventListener('click', function () {
+        if (st.walking) return;
+        z.conf = Math.min(99, z.conf + 1); if (DB_URL) z.local = true;
+        saveLocal(); zlistKey = ''; pushZone(z); zoneList(); toast('Confirmed: ' + HZ_TYPES[z.type][0] + ' is still there.', 'ok'); sfx('click');
+      });
       loc.addEventListener('click', function () { ping(z.y * W + z.x); cv.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }); });
       rm.addEventListener('click', function () {
         if (st.walking) return;
         if (DB_URL && !z.local) remote('DELETE', '/hazards/' + z.id).catch(function () { dbState = 'offline'; zoneList(); });
         setZones(zones.filter(function (q) { return q !== z; }));
+        toast('Hazard report removed. Routes updated.'); logEvent('Hazard report removed: ' + HZ_TYPES[z.type][0] + '.');
       });
-      bt.appendChild(loc); bt.appendChild(rm); row.appendChild(bt); box.appendChild(row);
+      bt.appendChild(loc); bt.appendChild(cf); bt.appendChild(rm); row.appendChild(bt); box.appendChild(row);
     });
   }
   function ping(cell) { st.ping = cell; st.pingT = Date.now(); update(); setTimeout(function () { if (!st.walking) update(); }, 6100); }
@@ -844,7 +937,8 @@ if (typeof document !== 'undefined') (function () {
     set('r-steps', rt ? rt.steps.toLocaleString('en-US') : '—'); set('r-o2', rt ? rt.eo.toFixed(0) + ' L' : '—');
     set('r-after', rt ? (rt.after >= 0 ? '+' : '−') + Math.abs(rt.after).toFixed(0) + ' L' : '—');
     $('r-after').className = rt ? (rt.after > 80 ? 'c-ok' : rt.after >= 0 ? 'c-warn' : 'c-bad') : '';
-    $('go').disabled = st.walking || forced || !D.tgt || !D.tgt.ok || st.target === st.pos;
+    $('go').disabled = !st.walking && (forced || !D.tgt || !D.tgt.ok || st.target === st.pos);
+    set('go-l', st.walking ? 'Stop here' : 'Walk there'); $('go').classList.toggle('stop', st.walking);
     $('home').disabled = st.walking || st.pos === T.hab;
     // science ranking
     var list = $('sci'); list.innerHTML = '';
@@ -864,11 +958,11 @@ if (typeof document !== 'undefined') (function () {
       });
     }
     set('msg', st.msg);
-    warnsList(D); photos(D); zoneList();
+    warnsList(D); photos(D); zoneList(); budget(D); logList(); buildProfile(D); drawProfile();
     // telemetry packet
     var px = st.pos % W, py = (st.pos / W) | 0;
     var pkt = {
-      packet_id: 'DEMO-EVA-' + ('00000' + Math.round(st.elapsed)).slice(-5), crew_id: 'EV-1',
+      packet_id: 'DEMO-EVA-' + ('00000' + Math.round(st.elapsed)).slice(-5), crew_id: cfg.callsign,
       location: { frame: 'local grid, metres from airlock (synthetic terrain)', east_m: (px - C.HAB.x) * CELL, north_m: (C.HAB.y - py) * CELL, elevation_rel_m: +T.z[st.pos].toFixed(1), local_slope_deg: +T.slope[st.pos].toFixed(1), soil_thermal_inertia_tiu: +T.I[st.pos].toFixed(0), sky_view_factor: +T.psi[st.pos].toFixed(2), safety_class: ['SAFE', 'CAUTION', 'NO_ENTRY'][T.cls[st.pos]] },
       plss_life_support: { o2_primary_pressure_psia: +D.p.toFixed(0), o2_primary_usable_liters_stp: +st.V.toFixed(1), o2_flow_rate_lpm_ema180: +st.ema.toFixed(2), time_remaining_o2_sec: Math.max(0, Math.round((st.V - P.reserve) / st.ema * 60)) },
       biometrics_and_risk: { metabolic_power_watts: +st.W.toFixed(0), fatigue_index_f: +st.F.toFixed(2), present_bias_beta: +D.beta.toFixed(3), radiation_dose_rate_usv_hr: +(P.doseRef * T.psi[st.pos]).toFixed(1), cumulative_eva_dose_msv: +(st.dose / 1000).toFixed(4) },
@@ -878,25 +972,147 @@ if (typeof document !== 'undefined') (function () {
     };
     set('packet', JSON.stringify(pkt, null, 2));
   }
-  function update() { var D = derive(); draw(D); panel(D); drawAR(D); return D; }
+  var STATE_NOTE = {
+    NOMINAL_EVA: ['HUD state: nominal.', 'ok', ''], CAUTION: ['HUD state: caution. Tank or margin is in the yellow band.', 'warn', 'warn'],
+    SAND_TRAP_WARN: ['HUD warning: the straight course crosses hazards. Route redrawn.', 'warn', 'warn'],
+    COGNITIVE_SHED: ['Fatigue is high. The HUD now shows only the way home.', 'warn', 'shed'],
+    PNR_BREACH_ABORT: ['Past the point of no return. Go back to the airlock now.', 'bad', 'abort']
+  };
+  function update() {
+    var D = derive(); lastD = D;
+    if (st.walking && view.z > 1) centerOn(st.pos);
+    draw(D); panel(D); drawAR(D);
+    if (D.code !== lastCode) {
+      if (lastCode) {
+        var sn = STATE_NOTE[D.code]; logEvent(sn[0], sn[1]); if (sn[2]) sfx(sn[2]);
+        if (D.code === 'COGNITIVE_SHED' || D.code === 'PNR_BREACH_ABORT') toast(sn[0], sn[1]);
+        logList();
+      }
+      lastCode = D.code;
+    }
+    return D;
+  }
+  function redraw() { if (lastD) draw(lastD); }
+
+  /* ---------- oxygen budget bar, EVA log, elevation profile ---------- */
+  function budget(D) {
+    if (!$('budget-bar')) return;
+    var forced = D.shed || D.breach, t = D.tgt && !forced ? D.tgt : null, V = st.V, Rv = Math.min(P.reserve, V);
+    var eo = t ? t.eo : 0, er = t ? t.er : D.retHere; if (!isFinite(er)) er = 0;
+    var hold = (1 - D.beta) * Math.max(0, V - eo - Rv), mar = t ? t.after : D.margin; if (!isFinite(mar)) mar = 0;
+    var parts = [[t ? 'Walk to B' : '', eo, 'go'], [t ? 'Walk home from B' : 'Walk home from here', er, 'home'], ['Held back for fatigue', hold, 'hold'], ['Reserve', Rv, 'res'], [mar >= 0 ? 'Free margin' : 'Short by', Math.abs(mar), mar >= 0 ? 'mar' : 'short']];
+    var tot = 0; parts.forEach(function (p) { tot += p[1]; }); if (tot <= 0) tot = 1;
+    var bar = $('budget-bar'), leg = $('budget-leg'); bar.textContent = ''; leg.textContent = '';
+    parts.forEach(function (p) {
+      if (!p[0] || p[1] < 0.5) return;
+      var sg = el('i', 'bg-' + p[2]); sg.style.width = (p[1] / tot * 100).toFixed(2) + '%'; sg.title = p[0] + ': ' + p[1].toFixed(0) + ' L'; bar.appendChild(sg);
+      var li = el('li'); li.appendChild(el('i', 'bg-' + p[2])); li.appendChild(el('span', '', p[0])); li.appendChild(el('b', 'num', p[1].toFixed(0) + ' L')); leg.appendChild(li);
+    });
+    set('budget-cap', 'Tank now: ' + V.toFixed(0) + ' L usable' + (t ? ', split for the route to ' + destName() : ', no route chosen'));
+  }
+  function logList() {
+    var box = $('log'); if (!box) return;
+    var key = st.log.length + ':' + (st.log[0] ? st.log[0].text + st.log[0].t : ''); if (key === logKey) return; logKey = key;
+    box.textContent = '';
+    st.log.slice(0, 40).forEach(function (e) { var li = el('li', e.kind ? 'c-' + e.kind : ''); li.appendChild(el('time', 'num', fmtT(e.t))); li.appendChild(el('span', '', e.text)); box.appendChild(li); });
+  }
+  function report() {
+    var r = {
+      generated: new Date().toISOString(), crew_id: cfg.callsign, terrain: 'synthetic demo grid, 40 m cells',
+      eva: { clock_sec: Math.round(st.elapsed), walked_m: Math.round(st.walked), o2_usable_liters: +st.V.toFixed(1), tank_psia: Math.round(st.V * P.psiPerL), dose_usv: +st.dose.toFixed(2), fatigue_index: +st.F.toFixed(2), hud_state: lastCode },
+      samples: SCI.filter(function (q) { return q.done; }).map(function (q) { return q.id + ' ' + q.name; }),
+      log: st.log.slice().reverse().map(function (e) { return { eva_clock_sec: Math.round(e.t), event: e.text }; }),
+      track_m_from_airlock: st.trail.filter(function (c, i) { return i % 3 === 0 || i === st.trail.length - 1; }).map(function (c) { return [((c % W) - C.HAB.x) * CELL, (C.HAB.y - ((c / W) | 0)) * CELL]; }),
+      hazard_reports: zones.map(function (z) { var o = wire(z); delete o.photo; return o; })
+    };
+    download('aeromargin-eva-report.json', JSON.stringify(r, null, 2)); toast('EVA report downloaded.', 'ok');
+  }
+  function buildProfile(D) {
+    var forced = D.shed || D.breach, r = D.tgt && !forced ? D.tgt.route : null;
+    var key = r && r.length > 1 ? r[0] + ':' + r[r.length - 1] + ':' + r.length + ':' + mode + ':' + zver : '';
+    if (key === profKey) return; profKey = key; prof = null; st.scrub = -1;
+    if (!key) return;
+    var d = [0], z = [T.z[r[0]]], o = [0], v = speed(), lo = z[0], hi = z[0];
+    for (var i = 1; i < r.length; i++) {
+      var e = C.edge(T, r[i - 1], r[i], stepLen(r[i - 1], r[i]), v); d.push(d[i - 1] + e.len); o.push(o[i - 1] + e.o2);
+      var zz = T.z[r[i]]; z.push(zz); if (zz < lo) lo = zz; if (zz > hi) hi = zz;
+    }
+    if (hi - lo < 20) { var mid = (hi + lo) / 2; lo = mid - 10; hi = mid + 10; }
+    prof = { cells: r, d: d, z: z, o: o, lo: lo, hi: hi, at: -1 };
+  }
+  function drawProfile() {
+    var c = $('profile'); if (!c || !c.clientWidth) return;
+    var f = fit(c), g = f[0], w = f[1], h = f[2], ink = cssv('--ink'), muted = cssv('--muted'), line = cssv('--line'), warn = cssv('--warn');
+    g.font = '500 11px ' + cssv('--mono'); g.textBaseline = 'middle';
+    if (!prof) { g.fillStyle = muted; g.textAlign = 'center'; g.font = '400 13px ' + cssv('--body'); g.fillText('Choose a destination B to see the climbs and descents on the way.', w / 2, h / 2, w - 20); return; }
+    var L = 46, Rr = 10, Tp = 20, B = 20, pw = w - L - Rr, ph = h - Tp - B, n = prof.d.length, tot = prof.d[n - 1];
+    function X(i) { return L + prof.d[i] / tot * pw; } function Y(v) { return Tp + (1 - (v - prof.lo) / (prof.hi - prof.lo)) * ph * 0.92 + ph * 0.04; }
+    g.strokeStyle = line; g.lineWidth = 1; g.beginPath(); g.moveTo(L, Tp + ph + 0.5); g.lineTo(L + pw, Tp + ph + 0.5); g.stroke();
+    g.fillStyle = muted; g.textAlign = 'right';
+    g.fillText((prof.hi >= 0 ? '+' : '−') + Math.abs(prof.hi).toFixed(0) + ' m', L - 6, Y(prof.hi)); g.fillText((prof.lo >= 0 ? '+' : '−') + Math.abs(prof.lo).toFixed(0) + ' m', L - 6, Y(prof.lo));
+    g.textAlign = 'center';
+    var stepKm = tot > 5000 ? 2000 : tot > 2000 ? 1000 : 500;
+    for (var k = stepKm; k < tot; k += stepKm) { var xk = L + k / tot * pw; g.strokeStyle = line; g.beginPath(); g.moveTo(xk + 0.5, Tp + ph); g.lineTo(xk + 0.5, Tp + ph + 4); g.stroke(); g.fillText((k / 1000) + ' km', xk, Tp + ph + 12); }
+    // filled ground, then caution stretches in yellow on top
+    g.beginPath(); g.moveTo(X(0), Tp + ph); for (var i = 0; i < n; i++) g.lineTo(X(i), Y(prof.z[i])); g.lineTo(X(n - 1), Tp + ph); g.closePath();
+    g.globalAlpha = 0.16; g.fillStyle = ink; g.fill(); g.globalAlpha = 1;
+    for (i = 1; i < n; i++) if (T.cls[prof.cells[i]] === 1) {
+      g.beginPath(); g.moveTo(X(i - 1), Tp + ph); g.lineTo(X(i - 1), Y(prof.z[i - 1])); g.lineTo(X(i), Y(prof.z[i])); g.lineTo(X(i), Tp + ph); g.closePath(); g.globalAlpha = 0.4; g.fillStyle = warn; g.fill(); g.globalAlpha = 1;
+    }
+    g.lineJoin = 'round'; g.lineWidth = 2; g.strokeStyle = ink; g.beginPath(); for (i = 0; i < n; i++) { if (i) g.lineTo(X(i), Y(prof.z[i])); else g.moveTo(X(i), Y(prof.z[i])); } g.stroke();
+    g.strokeStyle = warn; g.lineWidth = 2.5; g.beginPath(); for (i = 1; i < n; i++) if (T.cls[prof.cells[i]] === 1) { g.moveTo(X(i - 1), Y(prof.z[i - 1])); g.lineTo(X(i), Y(prof.z[i])); } g.stroke();
+    g.fillStyle = cssv('--ice'); g.beginPath(); g.arc(X(0), Y(prof.z[0]), 4, 0, 6.3); g.fill();
+    g.fillStyle = cssv('--gold'); g.beginPath(); g.arc(X(n - 1), Y(prof.z[n - 1]), 4, 0, 6.3); g.fill();
+    g.textAlign = 'left'; g.fillStyle = muted; g.textBaseline = 'top';
+    var j = prof.at;
+    if (j < 0) { g.fillText('Elevation along the route · move over the chart to inspect a point', L, 3, pw); return; }
+    var dl = j ? prof.d[j] - prof.d[j - 1] : 1, sl = j ? Math.asin(Math.max(-1, Math.min(1, (prof.z[j] - prof.z[j - 1]) / dl))) * 180 / Math.PI : 0, cl = T.cls[prof.cells[j]];
+    g.strokeStyle = cssv('--ice'); g.lineWidth = 1; g.beginPath(); g.moveTo(X(j) + 0.5, Tp); g.lineTo(X(j) + 0.5, Tp + ph); g.stroke();
+    g.fillStyle = cssv('--ice'); g.beginPath(); g.arc(X(j), Y(prof.z[j]), 5, 0, 6.3); g.fill();
+    g.fillStyle = ink;
+    g.fillText(fmtM(prof.d[j]) + ' · ' + (prof.z[j] >= 0 ? '+' : '−') + Math.abs(prof.z[j]).toFixed(0) + ' m · ' + (sl >= 0 ? 'up ' : 'down ') + Math.abs(sl).toFixed(0) + '° · ' + (cl === 1 ? 'caution' : 'safe') + ' · ' + prof.o[j].toFixed(0) + ' L used', L, 3, pw);
+  }
+  function profilePoint(ev) {
+    var c = $('profile'); if (!prof) return;
+    var r = c.getBoundingClientRect(), fr = clamp((ev.clientX - r.left - 46) / (r.width - 56), 0, 1), want = fr * prof.d[prof.d.length - 1], j = 0;
+    while (j < prof.d.length - 1 && prof.d[j] < want) j++;
+    if (j === prof.at) return; prof.at = j; st.scrub = prof.cells[j]; drawProfile(); redraw();
+  }
+
+  /* ---------- map zoom and pan ---------- */
+  function clampView() {
+    view.z = clamp(view.z, 1, 6);
+    view.x = clamp(view.x, 0, cv.width - cv.width / view.z); view.y = clamp(view.y, 0, cv.height - cv.height / view.z);
+    cv.style.touchAction = view.z > 1 ? 'none' : 'pan-y'; cv.classList.toggle('zoomed', view.z > 1);
+    if ($('z-out')) $('z-out').disabled = $('z-fit').disabled = view.z <= 1;
+    if ($('z-in')) $('z-in').disabled = view.z >= 6;
+  }
+  function zoomAt(mx, my, nz) { // keep the map point (mx, my) under the same spot on screen
+    var sx = (mx - view.x) * view.z, sy = (my - view.y) * view.z;
+    view.z = clamp(nz, 1, 6); view.x = mx - sx / view.z; view.y = my - sy / view.z; clampView(); redraw();
+  }
+  function centerOn(cell) { view.x = cx(cell) - cv.width / view.z / 2; view.y = cy(cell) - cv.height / view.z / 2; clampView(); }
+  function evMap(ev) { var r = cv.getBoundingClientRect(); return [(ev.clientX - r.left) / r.width * cv.width / view.z + view.x, (ev.clientY - r.top) / r.height * cv.height / view.z + view.y]; }
 
   /* ---------- walking ---------- */
   function walk(cells, onDone, track) {
     if (cells.length < 2) return;
     st.walking = true; st.msg = ''; st.walkCells = track ? cells : null; st.walkIdx = 1;
-    var v = speed(), i = 1, per = reduce ? cells.length : Math.max(1, Math.ceil(cells.length / 90));
+    st.stopReq = false;
+    var v = speed(), i = 1, per = reduce ? cells.length : Math.max(1, Math.ceil(cells.length / 90)) * cfg.anim;
     function step() {
-      for (var n = 0; n < per && i < cells.length; n++, i++) {
+      for (var n = 0; n < per && i < cells.length && !st.stopReq; n++, i++) {
         var a = cells[i - 1], b = cells[i], dd = stepLen(a, b);
         var e = C.edge(T, a, b, dd, v), al = Math.min(1, e.t / 180), fl = C.flow(e.W);
         st.V = Math.max(0, st.V - e.o2); st.elapsed += e.t; st.walked += e.len; st.W = e.W;
-        st.ema = al * fl + (1 - al) * st.ema; st.dose += P.doseRef * T.psi[b] * e.t / 3600; st.pos = b;
+        st.ema = al * fl + (1 - al) * st.ema; st.dose += P.doseRef * T.psi[b] * e.t / 3600; st.pos = b; st.trail.push(b);
       }
       st.walkIdx = i;
       $('tank').value = Math.round(st.V * P.psiPerL);
-      if (i < cells.length) { update(); requestAnimationFrame(step); }
+      if (i < cells.length && !st.stopReq) { update(); requestAnimationFrame(step); }
       else {
-        st.walking = false; st.walkCells = null; onDone();
+        var done = i >= cells.length;
+        st.walking = false; st.walkCells = null; st.stopReq = false; onDone(done);
         if (pendingZones) { var pz = pendingZones; pendingZones = null; setZones(pz); } else update();
       }
     }
@@ -905,22 +1121,29 @@ if (typeof document !== 'undefined') (function () {
   function goWalk() {
     var D = derive(); if (st.walking || D.shed || D.breach || !D.tgt || !D.tgt.ok || st.target === st.pos) return false;
     var sci = st.sci, home = st.target === T.hab;
-    walk(D.tgt.route, function () {
+    logEvent('Left for ' + destName() + ' on the ' + (mode === 'safe' ? 'safest' : 'shortest') + ' route, ' + fmtM(D.tgt.len) + '.');
+    walk(D.tgt.route, function (done) {
+      if (!done) { st.msg = 'Stopped on the way. The route is replanned from here.'; logEvent('Stopped on the way to ' + destName() + '.', 'warn'); return; }
       if (sci && !sci.done) {
         sci.done = true; var n = 0;
         SCI.forEach(function (o) { if (o !== sci && o.cls === sci.cls && !o.done) { o.s2 *= 0.25; n++; } });
         st.msg = 'Sample logged at ' + sci.name + '.' + (n ? ' Uncertainty at ' + n + ' similar target' + (n > 1 ? 's' : '') + ' collapsed, so the ranking changed.' : '');
+        sfx('click');
       } else st.msg = home ? 'Back at the airlock with ' + st.V.toFixed(0) + ' L usable.' : 'Arrived at the waypoint.';
+      sfx('ok'); toast(st.msg, 'ok'); logEvent(st.msg, 'ok');
       st.target = -1; st.sci = null;
     }, true);
     return true;
   }
-  $('go').addEventListener('click', goWalk);
+  $('go').addEventListener('click', function () { if (st.walking) { st.stopReq = true; return; } goWalk(); });
   $('home').addEventListener('click', function () {
-    var D = derive(); st.target = -1; st.sci = null;
-    walk(D.egress, function () { st.msg = 'Back at the airlock with ' + st.V.toFixed(0) + ' L usable.'; });
+    var D = derive(); st.target = -1; st.sci = null; logEvent('Heading back to the airlock, ' + fmtM(pathLen(D.egress)) + '.');
+    walk(D.egress, function (done) {
+      if (!done) { st.msg = 'Stopped on the way home.'; logEvent(st.msg, 'warn'); return; }
+      st.msg = 'Back at the airlock with ' + st.V.toFixed(0) + ' L usable.'; sfx('ok'); toast(st.msg, 'ok'); logEvent(st.msg, 'ok');
+    });
   });
-  $('reset').addEventListener('click', function () { if (st.walking) return; reset(); update(); });
+  $('reset').addEventListener('click', function () { if (st.walking) return; reset(); view.z = 1; clampView(); update(); toast('EVA reset. Tank refilled, hazard reports kept.'); });
   $('tank').addEventListener('input', function () { if (st.walking) return; st.V = +this.value / P.psiPerL; update(); });
   $('fat').addEventListener('input', function () { if (st.walking) return; st.F = +this.value / 100; update(); });
   Array.prototype.forEach.call(document.querySelectorAll('[data-layer]'), function (bn) {
@@ -945,7 +1168,7 @@ if (typeof document !== 'undefined') (function () {
     if (st.walking) return false;
     if (T.rsl[c] || T.block[c]) { st.msg = 'Start point A cannot be inside a red zone.'; return false; }
     if (!isFinite(R().dist[c])) { st.msg = 'No walkable way home from that point.'; return false; }
-    st.pos = c; if (st.target === c) { st.target = -1; st.sci = null; }
+    st.pos = c; st.trail = [c]; if (st.target === c) { st.target = -1; st.sci = null; }
     st.msg = 'Start point A set. EV-1 is placed there for planning.'; return true;
   }
   function fillSelects() {
@@ -993,7 +1216,7 @@ if (typeof document !== 'undefined') (function () {
     set('hz-r-out', +$('hz-r').value * CELL + ' m');
   }
   function closeForm() {
-    draft = null; draftPhoto = ''; $('hzform').hidden = true; $('hzform').reset(); $('hz-prev').hidden = true;
+    draft = null; draftPhoto = ''; $('hzform').hidden = true; $('hzform').reset(); $('hz-prev').hidden = true; $('hz-by').value = cfg.callsign;
     if (clickMode === 'haz') clickMode = 'B';
   }
   function startAdd(here) {
@@ -1028,18 +1251,44 @@ if (typeof document !== 'undefined') (function () {
     if (!draft) { st.msg = 'Tap the map to mark where the hazard is.'; update(); return; }
     if (st.walking) { st.msg = 'Wait until the walk is finished, then save.'; update(); return; }
     var z = cleanZone({ id: uid(), x: draft.x, y: draft.y, r: +$('hz-r').value, type: $('hz-type').value, level: +$('hz-level').value,
-      desc: $('hz-desc').value.trim(), by: $('hz-by').value.trim() || 'EV-1', t: Date.now(), photo: draftPhoto, local: !!DB_URL });
+      desc: $('hz-desc').value.trim(), by: $('hz-by').value.trim() || cfg.callsign, t: Date.now(), photo: draftPhoto, local: !!DB_URL });
     closeForm();
     st.msg = 'Hazard zone saved: ' + HZ_TYPES[z.type][0] + ', ' + LEVELS[z.level].toLowerCase() + '. Routes now avoid it.';
+    toast(st.msg, z.level === 3 ? 'bad' : 'warn'); sfx('hazard'); logEvent('Hazard reported: ' + HZ_TYPES[z.type][0] + ', ' + LEVELS[z.level].toLowerCase() + '.', z.level === 3 ? 'bad' : 'warn');
     setZones(zones.concat([z])); pushZone(z); ping(z.y * W + z.x);
   });
 
   /* ---------- map pointer ---------- */
   function cellAt(ev) {
-    var r = cv.getBoundingClientRect(), x = Math.floor((ev.clientX - r.left) / r.width * W), y = Math.floor((ev.clientY - r.top) / r.height * H);
+    var m = evMap(ev), x = Math.floor(m[0] / S), y = Math.floor(m[1] / S);
     return (x < 0 || y < 0 || x >= W || y >= H) ? -1 : y * W + x;
   }
+  var ptrs = {}, nptr = 0, drag = null, pinch = null, moved = false;
+  function pinchNow() { var k = Object.keys(ptrs), a = ptrs[k[0]], b = ptrs[k[1]]; return [Math.hypot(a.x - b.x, a.y - b.y) || 1, (a.x + b.x) / 2, (a.y + b.y) / 2]; }
+  cv.addEventListener('pointerdown', function (ev) {
+    ptrs[ev.pointerId] = { x: ev.clientX, y: ev.clientY }; nptr = Object.keys(ptrs).length; moved = false;
+    if (nptr === 1) drag = { x: ev.clientX, y: ev.clientY, vx: view.x, vy: view.y };
+    if (nptr === 2) { var p = pinchNow(), m = evMap({ clientX: p[1], clientY: p[2] }); pinch = { d: p[0], z: view.z, mx: m[0], my: m[1] }; drag = null; }
+    if (view.z > 1 && cv.setPointerCapture) { try { cv.setPointerCapture(ev.pointerId); } catch (e) {} }
+  });
+  cv.addEventListener('pointermove', function (ev) {
+    if (!ptrs[ev.pointerId]) return;
+    ptrs[ev.pointerId].x = ev.clientX; ptrs[ev.pointerId].y = ev.clientY;
+    if (nptr === 2 && pinch) { moved = true; zoomAt(pinch.mx, pinch.my, pinch.z * pinchNow()[0] / pinch.d); }
+    else if (nptr === 1 && drag && view.z > 1) {
+      var r = cv.getBoundingClientRect(), dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
+      if (moved) { view.x = drag.vx - dx / r.width * cv.width / view.z; view.y = drag.vy - dy / r.height * cv.height / view.z; clampView(); redraw(); }
+    }
+  });
+  function pointerEnd(ev) { delete ptrs[ev.pointerId]; nptr = Object.keys(ptrs).length; if (nptr < 2) pinch = null; if (!nptr) drag = null; }
+  cv.addEventListener('pointerup', pointerEnd); cv.addEventListener('pointercancel', pointerEnd);
+  cv.addEventListener('wheel', function (ev) {
+    if (!ev.ctrlKey && view.z <= 1) return; // a plain wheel scrolls the page until the map is zoomed
+    ev.preventDefault(); var m = evMap(ev); zoomAt(m[0], m[1], view.z * (ev.deltaY < 0 ? 1.25 : 0.8));
+  }, { passive: false });
   cv.addEventListener('click', function (ev) {
+    if (moved) { moved = false; return; } // the end of a drag or pinch is not a tap
     var c = cellAt(ev); if (c < 0) return;
     if (clickMode === 'haz') { openForm(c); st.msg = ''; update(); return; }
     if (st.walking) return;
@@ -1145,7 +1394,8 @@ if (typeof document !== 'undefined') (function () {
     var box = $('chips'); box.textContent = '';
     CHIPS[vlang].forEach(function (c) { var b = el('button', '', c); b.type = 'button'; b.addEventListener('click', function () { $('cmd').value = c; runCmd(c); }); box.appendChild(b); });
     $('cmd').placeholder = Lx('Say or type a command', 'Скажите или введите команду');
-    $('mic').textContent = listening ? Lx('Listening… tap to stop', 'Слушаю… нажмите, чтобы остановить') : Lx('Speak', 'Говорить');
+    set('mic-l', listening ? Lx('Listening… tap to stop', 'Слушаю… нажмите, чтобы остановить') : Lx('Speak', 'Говорить'));
+    $('mic').classList.toggle('live', listening);
     $('mic').setAttribute('aria-pressed', listening ? 'true' : 'false');
     if (!SR) set('vnote', Lx('This browser has no speech recognition (Chrome, Edge and Safari do). Typed commands and the buttons below work everywhere.', 'В этом браузере нет распознавания речи (есть в Chrome, Edge и Safari). Ввод текстом и кнопки ниже работают везде.'));
   }
@@ -1163,12 +1413,135 @@ if (typeof document !== 'undefined') (function () {
     bn.addEventListener('click', function () { vlang = bn.getAttribute('data-vlang'); voiceUI(); });
   });
 
+  /* ---------- zoom buttons, scenarios, profile, reports, settings ---------- */
+  $('z-in').addEventListener('click', function () { zoomAt(view.x + cv.width / view.z / 2, view.y + cv.height / view.z / 2, view.z * 1.5); });
+  $('z-out').addEventListener('click', function () { zoomAt(view.x + cv.width / view.z / 2, view.y + cv.height / view.z / 2, view.z / 1.5); });
+  $('z-fit').addEventListener('click', function () { view.z = 1; clampView(); redraw(); });
+  $('z-me').addEventListener('click', function () { if (view.z < 3) view.z = 3; centerOn(st.pos); redraw(); ping(st.pos); });
+
+  var SCEN = {
+    walk: ['Science walk', 'Plan a walk from the airlock to the layered sulfates. Compare the safest and the shortest route.', function () { pickDest(-1, SCI[0]); }],
+    lowo2: ['Low oxygen', 'Tank at 900 psia. The survival contour is small and far targets are locked.', function () { st.V = 900 / P.psiPerL; $('tank').value = 900; pickDest(-1, SCI[4]); }],
+    tired: ['Tired astronaut', 'Fatigue 0.70 out at the sulfate mound. The HUD hides science and shows only the way home.', function () { st.pos = SCI[0].cell; st.trail = [st.pos]; st.F = 0.7; $('fat').value = 70; }],
+    back: ['Crevasse on the way home', 'Standing at the graben. The route home bends around the reported crevasse.', function () { st.pos = SCI[4].cell; st.trail = [st.pos]; pickDest(T.hab, null); }]
+  };
+  (function () {
+    var box = $('scen');
+    Object.keys(SCEN).forEach(function (k) {
+      var b = el('button', '', SCEN[k][0]); b.type = 'button'; b.title = SCEN[k][1];
+      b.addEventListener('click', function () {
+        if (st.walking) return;
+        closeForm(); reset(); mode = 'safe'; clickMode = 'B'; view.z = 1; clampView(); SCEN[k][2](); st.msg = SCEN[k][1];
+        logEvent('Scenario loaded: ' + SCEN[k][0] + '.'); update(); toast(SCEN[k][0] + ': ' + SCEN[k][1]);
+      });
+      box.appendChild(b);
+    });
+  })();
+
+  var pc = $('profile');
+  pc.addEventListener('pointermove', profilePoint); pc.addEventListener('pointerdown', profilePoint);
+  pc.addEventListener('pointerleave', function () { if (!prof || prof.at < 0) return; prof.at = -1; st.scrub = -1; drawProfile(); redraw(); });
+
+  $('rep-dl').addEventListener('click', report);
+  $('hz-export').addEventListener('click', function () {
+    if (!zones.length) { toast('There are no hazard reports to export.'); return; }
+    download('aeromargin-hazards.json', JSON.stringify(zones.map(wire), null, 2)); toast(zones.length + ' hazard report' + (zones.length > 1 ? 's' : '') + ' exported.', 'ok');
+  });
+  $('hz-import').addEventListener('click', function () { $('hz-file').click(); });
+  $('hz-file').addEventListener('change', function () {
+    var f = this.files && this.files[0], inp = this; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      inp.value = '';
+      try {
+        var arr = JSON.parse(rd.result); if (!Array.isArray(arr)) throw new Error('not a list');
+        var known = {}, add = []; zones.forEach(function (z) { known[z.id] = 1; });
+        arr.forEach(function (q) { var z = cleanZone(q); if (z && !known[z.id]) { z.local = !!DB_URL; known[z.id] = 1; add.push(z); } });
+        if (!add.length) { toast('Nothing new in that file.'); return; }
+        if (st.walking) { toast('Wait until the walk is finished, then import.', 'warn'); return; }
+        setZones(zones.concat(add)); add.forEach(pushZone);
+        toast(add.length + ' hazard report' + (add.length > 1 ? 's' : '') + ' imported. Routes updated.', 'ok'); logEvent(add.length + ' hazard reports imported from a file.');
+      } catch (e) { toast('That file is not a hazard export from this map.', 'bad'); }
+    };
+    rd.readAsText(f);
+  });
+
+  // settings dialog, theme and sound switches
+  var dlg = $('settings');
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', cfg.theme);
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', cfg.theme === 'light' ? '#f3ebe0' : '#1c1410');
+    $('theme-btn').setAttribute('aria-label', cfg.theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+    drawProfile(); drawMx();
+  }
+  function settingsUI() {
+    press('[data-theme-set]', 'data-theme-set', cfg.theme); press('[data-anim]', 'data-anim', String(cfg.anim));
+    $('set-sound').checked = cfg.sound; $('set-vol').value = Math.round(cfg.vol * 100); $('set-call').value = cfg.callsign;
+    $('set-stride').value = Math.round(cfg.stride * 100); set('set-stride-out', cfg.stride.toFixed(2) + ' m');
+    $('sound-btn').setAttribute('aria-pressed', cfg.sound ? 'true' : 'false'); $('sound-btn').setAttribute('aria-label', cfg.sound ? 'Turn sound cues off' : 'Turn sound cues on');
+    $('sound-btn').classList.toggle('off', !cfg.sound);
+  }
+  $('set-btn').addEventListener('click', function () { settingsUI(); if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); });
+  $('set-close').addEventListener('click', function () { if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); });
+  dlg.addEventListener('click', function (ev) { if (ev.target === dlg && dlg.close) dlg.close(); });
+  $('theme-btn').addEventListener('click', function () { cfg.theme = cfg.theme === 'light' ? 'dark' : 'light'; saveCfg(); applyTheme(); settingsUI(); });
+  $('sound-btn').addEventListener('click', function () { cfg.sound = !cfg.sound; saveCfg(); settingsUI(); if (cfg.sound) sfx('ok'); toast(cfg.sound ? 'Sound cues on.' : 'Sound cues off.'); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-theme-set]'), function (bn) {
+    bn.addEventListener('click', function () { cfg.theme = bn.getAttribute('data-theme-set'); saveCfg(); applyTheme(); settingsUI(); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-anim]'), function (bn) {
+    bn.addEventListener('click', function () { cfg.anim = +bn.getAttribute('data-anim'); saveCfg(); settingsUI(); });
+  });
+  $('set-sound').addEventListener('change', function () { cfg.sound = this.checked; saveCfg(); settingsUI(); if (cfg.sound) sfx('ok'); });
+  $('set-vol').addEventListener('input', function () { cfg.vol = +this.value / 100; saveCfg(); });
+  $('set-vol').addEventListener('change', function () { sfx('warn'); });
+  $('set-test').addEventListener('click', function () { if (!cfg.sound) { cfg.sound = true; saveCfg(); settingsUI(); } sfx('warn'); });
+  $('set-call').addEventListener('input', function () { cfg.callsign = this.value.trim().slice(0, 12) || 'EV-1'; saveCfg(); $('hz-by').value = cfg.callsign; update(); });
+  $('set-stride').addEventListener('input', function () { cfg.stride = +this.value / 100; P.stride = cfg.stride; saveCfg(); set('set-stride-out', cfg.stride.toFixed(2) + ' m'); update(); });
+
+  // model explorer: oxygen flow against slope for a chosen soil and pace
+  function drawMx() {
+    var c = $('mx'); if (!c || !c.clientWidth) return;
+    var soil = +$('mx-soil').value, v = +$('mx-speed').value, slope = +$('mx-slope').value;
+    var f = fit(c), g = f[0], w = f[1], h = f[2], ink = cssv('--ink'), muted = cssv('--muted'), line = cssv('--line');
+    var L = 40, Rr = 92, Tp = 12, B = 26, pw = w - L - Rr, ph = h - Tp - B, lo = -25, hi = 30, ymax = 4;
+    function fl(sd, I) { return C.flow(C.metWraw(Math.sin(sd * Math.PI / 180), I, v)); }
+    function X(sd) { return L + (sd - lo) / (hi - lo) * pw; } function Y(q) { return Tp + (1 - Math.min(q, ymax) / ymax) * ph; }
+    g.font = '500 11px ' + cssv('--mono'); g.textBaseline = 'middle'; g.lineWidth = 1;
+    for (var q = 0; q <= ymax; q++) { g.strokeStyle = line; g.beginPath(); g.moveTo(L, Y(q) + 0.5); g.lineTo(L + pw, Y(q) + 0.5); g.stroke(); g.fillStyle = muted; g.textAlign = 'right'; g.fillText(q + ' L', L - 6, Y(q)); }
+    g.textAlign = 'center'; [-20, -10, 0, 10, 20, 30].forEach(function (sd) { g.fillStyle = muted; g.fillText((sd > 0 ? '+' : '') + sd + '°', X(sd), Tp + ph + 14); });
+    g.strokeStyle = muted; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(X(0) + 0.5, Tp); g.lineTo(X(0) + 0.5, Tp + ph); g.stroke(); g.setLineDash([]);
+    function curve(I, color, width, dash, name) {
+      g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dash); g.lineJoin = 'round'; g.beginPath();
+      for (var sd = lo; sd <= hi; sd += 0.5) { if (sd === lo) g.moveTo(X(sd), Y(fl(sd, I))); else g.lineTo(X(sd), Y(fl(sd, I))); }
+      g.stroke(); g.setLineDash([]); g.fillStyle = color; g.textAlign = 'left'; g.fillText(name, L + pw + 8, Y(fl(hi, I)));
+    }
+    curve(160, cssv('--warn'), 1.5, [5, 4], 'loose sand'); curve(452, cssv('--ice'), 1.5, [5, 4], 'bedrock');
+    if (Math.abs(Y(fl(hi, soil)) - Y(fl(hi, 160))) > 12 && Math.abs(Y(fl(hi, soil)) - Y(fl(hi, 452))) > 12) curve(soil, ink, 2.5, [], 'your soil'); else curve(soil, ink, 2.5, [], '');
+    var now = fl(slope, soil); g.fillStyle = cssv('--gold'); g.beginPath(); g.arc(X(slope), Y(now), 6, 0, 6.3); g.fill(); g.strokeStyle = cssv('--bg'); g.lineWidth = 2; g.stroke();
+    var Wm = C.metWraw(Math.sin(slope * Math.PI / 180), soil, v), base = fl(0, 452);
+    set('mx-soil-out', soil + ' TIU' + (soil < 200 ? ', loose sand' : soil > 400 ? ', bedrock' : ', regolith')); set('mx-speed-out', v.toFixed(2) + ' m/s'); set('mx-slope-out', (slope > 0 ? '+' : '') + slope + '°');
+    set('mx-w', Wm.toFixed(0) + ' W'); set('mx-f', now.toFixed(2) + ' L/min'); set('mx-km', (now / (v * 60) * 1000).toFixed(0) + ' L per km'); set('mx-x', (now / base).toFixed(1) + '× flat bedrock');
+  }
+  ['mx-soil', 'mx-speed', 'mx-slope'].forEach(function (id) { $(id).addEventListener('input', drawMx); });
+
+  // navigation: mark the section in view
+  if (window.IntersectionObserver) {
+    var links = {}; Array.prototype.forEach.call(document.querySelectorAll('nav a.l'), function (a) { links[a.getAttribute('href').slice(1)] = a; });
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { for (var k in links) links[k].classList.toggle('on', k === e.target.id); } });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    Object.keys(links).forEach(function (id) { var sec = $(id); if (sec) io.observe(sec); });
+  }
+  var rsT = 0; window.addEventListener('resize', function () { clearTimeout(rsT); rsT = setTimeout(function () { drawProfile(); drawMx(); }, 120); });
+
   /* ---------- start ---------- */
-  fillSelects();
+  fillSelects(); $('hz-by').value = cfg.callsign;
   if (window.innerWidth < 700 && $('keybox')) $('keybox').open = false;
   zones = loadLocal() || SEEDS.map(cleanZone);
-  applyZones(); reset(); voiceUI(); update();
-  window.addEventListener('storage', function (e) { if (e.key === LS_KEY) { var l = loadLocal(); if (l) setZones(l, true); } }); // other tabs
+  applyZones(); reset(); clampView(); voiceUI(); settingsUI(); applyTheme(); update(); drawMx();
+  document.documentElement.classList.add('ready');
+  window.addEventListener('storage', function (e) { if (e.key === LS_KEY) { var l = loadLocal(); if (l) setZones(l, true, true); } }); // other tabs
   if (DB_URL) { pull(); setInterval(pull, 8000); }
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { update(); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { update(); drawMx(); });
 })();
