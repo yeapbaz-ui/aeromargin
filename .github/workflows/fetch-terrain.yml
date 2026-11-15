@@ -12,19 +12,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install GDAL
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin && pip install --quiet numpy tifffile
-      - name: Elevation window
-        run: |
-          set -o pipefail
-          SKIP_TI=1 bash tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200 100 2>&1 | tee fetch_dem.log
-          cp fetch_dem.log data/terrain/melas/
-      - name: Publish elevation
+      - name: Start from the published elevation
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -q -b terrain-data
-          git add -f data/terrain
-          git commit -q -m "Melas Chasma elevation window from the USGS HRSC+MOLA blended DEM"
-          git push -f origin terrain-data
+          git fetch -q --depth=1 origin terrain-data
+          git checkout -q -b terrain-data FETCH_HEAD
+          git checkout -q ${{ github.sha }} -- tools
       - name: Thermal inertia window
         continue-on-error: true
         timeout-minutes: 14
