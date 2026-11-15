@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "last_checked": "2026-11-15",
+  "note": "Every external dataset the site uses or quotes. 'role' says how: 'data' is loaded by the app, 'reference' is a published figure the model starts from, 'basis' is a document the team's model follows, 'image' is shown as a picture. A null product_id carries a 'verify' note instead of a guessed identifier.",
+  "region": {
+    "name": "Melas Chasma, north wall",
+    "body": "Mars",
+    "center_lat": -8.83,
+    "center_lon_east": 287.39,
+    "width_m": 10200,
+    "height_m": 6400,
+    "cell_m": 40,
+    "projection": "Equirectangular on a sphere of radius 3,396,190 m; standard parallel 8.83 S, central meridian 287.39 E",
+    "elevation_reference": "metres above the MOLA areoid"
+  },
+  "tiles": [
+    {
+      "id": "melas-dem",
+      "layer": "elevation",
+      "dataset": "hrsc_mola_blend_200m_v2",
+      "file": "terrain/melas/dem.f32",
+      "format": "Float32, little-endian, row-major, north row first",
+      "width": 55,
+      "height": 36,
+      "bytes": 7920,
+      "resolution_m": 200,
+      "margin_px": 2,
+      "units": "m",
+      "nodata": -9999,
+      "valid_min": -9000,
+      "valid_max": 22000,
+      "min": -4461.375,
+      "max": -2224.57,
+      "sha256": "c626bcb76f046a059deee7aef6b2957a3c9250ff0976717d0ef6a16a9f2682ca",
+      "cut_with": "tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200",
+      "resampling": "gdalwarp, bilinear, from the source grid (200 m) to the local equirectangular grid (200 m); the app then interpolates to 40 m cells (Catmull-Rom)",
+      "cut_on": "2026-11-15",
+      "source_file": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "hrsc_mola_blend_200m_v2",
+      "role": "data",
+      "name": "Mars MGS MOLA - MEX HRSC Blended DEM Global 200m v2",
+      "provider": "USGS Astrogeology Science Center (MOLA: NASA Goddard, Mars Global Surveyor; HRSC: DLR, ESA Mars Express)",
+      "url": "https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m",
+      "product_id": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2",
+      "units": "m above the areoid, 200 m per pixel",
+      "license": "MOLA: CC0. HRSC: CC BY-SA 3.0 IGO",
+      "citation": "Fergason, R. L., Hare, T. M., & Laura, J. (2018). HRSC and MOLA Blended Digital Elevation Model at 200m v2. Astrogeology PDS Annex, U.S. Geological Survey.",
+      "used_for": "Elevation of every map cell; slope, sky view, safety classes and routes are computed from it",
+      "last_checked": "2026-11-15"
+    },
+    {
+      "id": "msl_rad_surface",
+      "role": "reference",
+      "name": "Mars Science Laboratory Radiation Assessment Detector (RAD), surface dose rate",
+      "provider": "NASA JPL / Southwest Research Institute",
+      "url": "https://mars.nasa.gov/msl/spacecraft/instruments/rad/",
+      "product_id": null,
+      "verify": "PDS data set identifier of the RAD reduced data records was not checked by the team",
+      "units": "0.64 mSv/day (= 26.7 microSv/h), average at Gale crater, 2012-2013, near solar maximum",
+      "license": "Public domain (NASA)",
+      "citation": "Hassler, D. M., et al. (2014). Mars' surface radiation environment measured with the Mars Science Laboratory's Curiosity rover. Science, 343(6169), 1244797.",
+      "used_for": "One reference dose rate, scaled by a sky-view factor from the DEM. Not measured in Valles Marineris",
+      "last_checked": "2026-11-15"
+    },
+    {
+      "id": "themis_thermal_inertia",
+      "role": "reference",
+      "name": "THEMIS Thermal Inertia Mosaic, Quantitative, 100 m",
+      "provider": "USGS Astrogeology Science Center / Arizona State University (2001 Mars Odyssey THEMIS)",
+      "url": "https://themis.asu.edu/",
+      "product_id": null,
+      "verify": "No THEMIS tile is bundled. The quadrangle file that covers 8.83 S, 287.39 E was not retrieved; the USGS download host did not answer when the tile was cut",
+      "units": "J m^-2 K^-1 s^-1/2 (TIU), stated accuracy about 20%",
+      "license": "See provider terms",
+      "citation": "Fergason, R. L., Christensen, P. R., & Kieffer, H. H. (2006). High-resolution thermal inertia derived from THEMIS: Thermal model and applications. J. Geophys. Res., 111, E12004. doi:10.1029/2006JE002735",
+      "used_for": "Not loaded. The model uses one regolith reference value (295 TIU) for every cell and says so",
+      "last_checked": "2026-11-15"
+    },
+    {
+      "id": "nasa_hidh",
+      "role": "basis",
+      "name": "Human Integration Design Handbook (HIDH), Revision 1",
+      "provider": "NASA",
+      "url": "https://www.nasa.gov/hidh/",
+      "product_id": "NASA/SP-2010-3407/REV1",
+      "verify": "The exact HIDH table for oxygen use against metabolic rate was not checked by the team",
+      "units": "metabolic rate (W, MET) and oxygen use (L/min)",
+      "license": "Public domain (NASA)",
+      "citation": "NASA (2014). Human Integration Design Handbook, NASA/SP-2010-3407/REV1.",
+      "used_for": "Basis of the team's oxygen model. The coefficients are the team's, not NASA values",
+      "last_checked": "2026-11-15"
+    },
+    {
+      "id": "hirise_images",
+      "role": "image",
+      "name": "HiRISE images of Valles Marineris landforms",
+      "provider": "NASA / JPL-Caltech / University of Arizona (Mars Reconnaissance Orbiter HiRISE)",
+      "url": "https://hirise.lpl.arizona.edu/",
+      "product_id": "PSP_004054_1675, ESP_044892_1695, ESP_037494_1685, PSP_004384_1705, ESP_034883_1645, ESP_060148_1610",
+      "units": "images, about 25 cm per pixel at full resolution",
+      "license": "Public domain; credit NASA/JPL-Caltech/UArizona",
+      "citation": "McEwen, A. S., et al. (2007). Mars Reconnaissance Orbiter's High Resolution Imaging Science Experiment (HiRISE). J. Geophys. Res., 112, E05S02.",
+      "used_for": "Pictures of the same kind of ground. Not pictures of the mapped spot",
+      "last_checked": "2026-11-15"
+    }
+  ]
+}

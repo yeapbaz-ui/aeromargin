@@ -159,6 +159,7 @@ pre#packet{margin:0;background:var(--deep);border:1px solid var(--line);padding:
 .pill{display:inline-block;font:600 12px/1 var(--mono);padding:5px 7px;border:1px solid;border-radius:2px;white-space:nowrap}
 footer{padding:36px 0 56px;color:var(--muted);font-size:14.5px}
 footer .wrap{display:grid;gap:10px}
+footer a.attr{color:var(--gold);font-weight:600;justify-self:start}
 footer strong{font:800 26px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
 .srcs{columns:2 340px;column-gap:40px;padding-left:20px;margin:0;font-size:15px}
 .srcs li{break-inside:avoid;margin-bottom:8px}
@@ -244,12 +245,10 @@ header.hero{padding:clamp(22px,4vw,44px) 0 clamp(18px,3vw,30px)}
 #demo .head h2{font-size:clamp(30px,3.6vw,46px)}
 #demo .head p{font-size:15.5px;color:var(--muted)}
 .mapbox{padding:14px;border-color:var(--line-2);box-shadow:var(--shadow)}
-.plan{align-items:end;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line)}
 .fld,.seg .seglab{font:500 12.5px/1.2 var(--body);letter-spacing:0;text-transform:none}
 .fld select{font-size:15px;padding:10px 8px;background:var(--deep)}
 .layers{margin-bottom:0;gap:0;overflow-x:auto;flex-wrap:nowrap}
-.layers button{border-radius:0;border-bottom:0;white-space:nowrap;padding:9px 12px;font-size:12px}
-.layers button+button{border-left:0}
+.layers button{border-radius:0;white-space:nowrap;font-size:12px}
 #map{border:1px solid var(--line)}
 .readout{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-top:0}
 .readout>div{background:var(--deep);padding:10px 12px;display:grid;gap:2px;align-content:start}
@@ -297,10 +296,6 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
 .card .ic.lg{color:var(--gold);margin-bottom:10px;display:block}
 #problem .cols{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
 /* scenario chips */
-.scen{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 16px}
-.scen span{font:500 13px/1.2 var(--body);color:var(--muted);margin-right:4px}
-.scen button{font:500 13.5px/1 var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--line-2);padding:9px 14px;border-radius:18px;cursor:pointer;transition:border-color .15s,background .15s}
-.scen button:hover{border-color:var(--gold);background:var(--panel-2)}
 /* map tools */
 .mapwrap{position:relative;line-height:0}
 #map.zoomed{cursor:grab} #map.zoomed:active{cursor:grabbing}
@@ -309,7 +304,7 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
 .zoomer button:hover:not(:disabled){border-color:#f0b24a;background:rgba(24,15,10,.95)}
 .zoomer button:disabled{opacity:.35;cursor:default}
 /* route profile and oxygen budget */
-.insight{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-top:0}
+.insight{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
 .insight>div{background:var(--deep);padding:10px 12px 12px;min-width:0}
 #profile{display:block;width:100%;height:132px;touch-action:pan-y;cursor:crosshair}
 .insight h5{font:600 13px/1.2 var(--body);margin:0 0 8px;color:var(--ink)}
@@ -384,6 +379,91 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
   .setrow{grid-template-columns:minmax(0,1fr)}
 }
 @media (prefers-reduced-motion:reduce){.console{opacity:1;transform:none}.toast,.dlg[open],#mic.live{animation:none}#budget-bar i{transition:none}}
+/* --- provenance badges, region line, load failure --- */
+.pv.pv{display:inline-block!important;font:600 9px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:2px 4px;border:1px solid currentColor;border-radius:3px;color:var(--muted);vertical-align:1px;cursor:help;white-space:nowrap;opacity:.9}
+.pv.pv-model{color:var(--gold)} .pv.pv-simulated{color:var(--ice)} .pv.pv-usgsdem,.pv.pv-themis,.pv.pv-hirise,.pv.pv-reference{color:var(--ok)} .pv.pv-input,.pv.pv-crew{color:var(--muted)}
+.pv-src.pv-src{display:none!important;font:400 11.5px/1.35 var(--body)!important;letter-spacing:0!important;text-transform:none!important;color:var(--muted)!important;margin-top:3px;white-space:normal}
+.prov-on .pv-src{display:block!important}
+.scenrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 14px;border-bottom:1px solid var(--line);padding-right:10px}
+.toolbar .scenrow .scen{border-bottom:0;flex:0 1 auto}
+.provsw{font:500 12.5px/1.2 var(--body);color:var(--ink);cursor:pointer;margin-left:auto;border:1px solid var(--line);padding:7px 10px;border-radius:3px;background:var(--deep)}
+.regionline{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;margin-top:10px;font:400 12.5px/1.4 var(--mono);color:var(--muted)}
+.regionline b{color:var(--ink);font-weight:600}
+.loadfail{border:1px solid var(--bad);background:var(--panel);color:var(--ink);padding:16px 18px;margin-bottom:14px;font-size:15.5px;line-height:1.5}
+.demo-note a{color:var(--gold)} .demo-note strong{color:var(--ink)}
+ul.limits{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 36px;align-content:start;justify-content:start}
+ul.limits li{align-self:start;font-size:16px;line-height:1.5;padding-left:14px;border-left:2px solid var(--line-2)}
+ul.limits b{color:var(--ink)}
+@media (max-width:700px){ul.limits{grid-template-columns:minmax(0,1fr)}}
+/* --- refactor pass: instrument toolbar, balanced columns, calmer type, readable tables --- */
+:root{--hair:rgba(255,255,255,.07);--zebra:rgba(255,255,255,.02)}
+:root[data-theme="light"]{--hair:rgba(0,0,0,.08);--zebra:rgba(0,0,0,.025)}
+h3{font:600 20px/1.25 var(--body);text-transform:none;letter-spacing:0}
+.card h3{font-size:18px;margin-bottom:8px}
+.tgt h4,.logbox h4,.hzform h4{font:600 16px/1.3 var(--body);text-transform:none;letter-spacing:0}
+.dlg-head h3{font-size:20px}
+th,td{padding:12px 16px;border-bottom:1px solid var(--hair)}
+td{color:var(--ink)}
+tbody tr:nth-child(even) td{background:var(--zebra)}
+tbody tr:last-child td{border-bottom:0}
+.pill{font:600 11.5px/1 var(--mono);padding:5px 9px;border:1px solid currentColor;border-radius:999px;background:color-mix(in srgb,currentColor 13%,transparent);letter-spacing:.02em}
+.pill.slate{color:var(--muted)} .pill.amber{color:var(--gold)}
+.sci-row,.scihead{grid-template-columns:34px 1fr 48px 96px}
+.sci-row .pill{padding:4px 8px}
+/* control header above the map */
+.toolbar{border:1px solid var(--line);background:var(--deep);margin-bottom:12px}
+.toolbar .scen{display:flex;align-items:center;gap:0;margin:0;padding:8px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap;row-gap:6px}
+.toolbar .tblab{font:500 12.5px/1 var(--body);color:var(--muted);margin-right:12px}
+.toolbar .scen button{height:34px;padding:0 14px;border-radius:0;border:1px solid var(--line);background:var(--panel);font:500 13.5px/1 var(--body);color:var(--ink);cursor:pointer}
+.toolbar .scen button+button{border-left:0}
+.toolbar .scen button:first-of-type{border-radius:3px 0 0 3px} .toolbar .scen button:last-of-type{border-radius:0 3px 3px 0}
+.toolbar .scen button:hover{background:var(--panel-2)}
+.toolbar .scen button[aria-pressed="true"]{background:var(--panel-2);box-shadow:inset 0 -3px 0 var(--gold)}
+.toolbar .plan{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 0;margin:0;padding:8px 10px 10px;border:0}
+.toolbar .plan>*{margin-right:10px}
+.toolbar .plan .seg,.toolbar .plan #hz-add{padding-left:10px;border-left:1px solid var(--line)}
+.toolbar .plan #hz-add{margin-left:auto;margin-right:0;border-left:1px solid var(--bad)}
+.toolbar select,.toolbar .plan button{height:34px;padding-top:0;padding-bottom:0}
+.toolbar .fld{flex:1 1 150px}
+.toolbar .fld select{font-size:14.5px}
+#swap{width:34px;padding:0;justify-content:center}
+/* layer tabs docked to the map */
+.layers{border:1px solid var(--line);border-bottom:0;background:var(--deep)}
+.layers button{border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:8px}
+.layers button:not(:disabled):hover{color:var(--ink)}
+.layers button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:inset 0 -3px 0 var(--gold)}
+.layers kbd{font:500 10.5px/1 var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:2px 4px;letter-spacing:0}
+/* primary actions right under the numbers */
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;border:1px solid var(--line);border-top:0;background:var(--deep);padding:10px 12px}
+.actions .btns{margin:0}
+.actions .btns button{height:38px;padding-top:0;padding-bottom:0}
+.actions #msg{margin:0;flex:1 1 220px;min-height:0}
+.insight{border-top:1px solid var(--line);margin-top:12px}
+/* legend stays out of the way */
+.keybox{border:1px solid var(--line);background:var(--deep);padding:0 12px;margin-top:10px}
+.keybox summary{margin:0;padding:9px 0}
+.keybox .keys{margin:0 0 10px;gap:5px 16px;font-size:12px}
+/* columns end together: the last card of the shorter column stretches */
+.console{align-items:stretch}
+.main,.side{align-content:start;grid-auto-rows:min-content}
+.main{grid-template-rows:auto 1fr}
+.main>.below{align-items:stretch}
+.side{display:flex;flex-direction:column}
+.side>.logbox{flex:1 1 auto;display:flex;flex-direction:column;min-height:180px}
+.side>.logbox #log{flex:1 1 0;max-height:none;min-height:120px}
+.jumpcell{position:relative}
+.jump{display:block;margin-top:6px;font:500 12.5px/1.3 var(--body);color:var(--gold);text-underline-offset:3px}
+@media (max-width:700px){
+  .toolbar select,.toolbar .plan button,.toolbar .scen button,.layers button{height:40px}
+  .toolbar .plan #hz-add{margin-left:0;border-left:1px solid var(--bad)}
+  .toolbar .scen{flex-wrap:nowrap;overflow-x:auto}
+  .toolbar .scen button{white-space:nowrap;flex:none}
+  .actions .btns{width:100%}
+  .actions .btns button{flex:1 1 auto;justify-content:center}
+  .provsw{margin-left:0}
+  .toolbar .plan .seg{padding-left:0;border-left:0}
+  .side>.logbox #log{flex:none;max-height:250px}
+}
 @media (max-width:980px){
   .console,.below{grid-template-columns:minmax(0,1fr)}
   .hero-grid,.step{grid-template-columns:minmax(0,1fr)}
@@ -446,11 +526,12 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
     <h2>Plan a walk. Watch the margin.</h2>
     <p>Choose a start A and a destination B, by tap, from the lists or by voice. The map marks ground as green, yellow or red, builds the safest route around the hazards and tells you what the walk costs in distance, time, steps and oxygen. The green contour is the point of no return: every place you can walk to from where you stand and still reach the airlock before the reserve.</p>
   </div>
-  <div class="scen" id="scen" role="group" aria-label="Demo scenarios"><span>Try a scenario</span></div>
   <div class="console">
     <div class="main">
     <div class="mapbox">
-      <div class="plan" role="group" aria-label="Route planner">
+      <div class="toolbar" role="group" aria-label="Scenario and route planner">
+        <div class="scen" id="scen" role="group" aria-label="Demo scenarios"><span class="tblab">Scenario</span></div>
+      <div class="plan">
         <label class="fld"><span><b class="pin pin-a">A</b>Start</span><select id="selA"></select></label>
         <button type="button" class="tb" id="swap" aria-label="Swap A and B" title="Swap A and B">&#8646;</button>
         <label class="fld"><span><b class="pin pin-b">B</b>Destination</span><select id="selB"></select></label>
@@ -458,16 +539,17 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
         <div class="seg" role="group" aria-label="Route type"><span class="seglab">Route</span><div class="row"><button type="button" data-mode="safe" aria-pressed="true">Safest</button><button type="button" data-mode="fast" aria-pressed="false">Shortest</button></div></div>
         <button type="button" class="tb danger" id="hz-add" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg>Add hazard zone</button>
       </div>
-      <div class="layers" role="group" aria-label="Map layer">
-        <button type="button" data-layer="safety" aria-pressed="true">Safety zones</button>
-        <button type="button" data-layer="relief" aria-pressed="false">Relief</button>
-        <button type="button" data-layer="slope" aria-pressed="false">Slope</button>
-        <button type="button" data-layer="thermal" aria-pressed="false">Thermal inertia</button>
-        <button type="button" data-layer="rad" aria-pressed="false">Radiation</button>
-        <button type="button" data-layer="o2" aria-pressed="false">O&#8322; home</button>
+      </div>
+      <div class="layers" role="group" aria-label="Map layer, keys 1 to 6">
+        <button type="button" data-layer="safety" aria-pressed="true">Safety zones<kbd aria-hidden="true">1</kbd></button>
+        <button type="button" data-layer="relief" aria-pressed="false">Relief<kbd aria-hidden="true">2</kbd></button>
+        <button type="button" data-layer="slope" aria-pressed="false">Slope<kbd aria-hidden="true">3</kbd></button>
+        <button type="button" data-layer="thermal" aria-pressed="false">Thermal inertia<kbd aria-hidden="true">4</kbd></button>
+        <button type="button" data-layer="rad" aria-pressed="false">Radiation<kbd aria-hidden="true">5</kbd></button>
+        <button type="button" data-layer="o2" aria-pressed="false">O&#8322; home<kbd aria-hidden="true">6</kbd></button>
       </div>
       <div class="mapwrap">
-        <canvas id="map" role="img" aria-label="Map of a synthetic canyon floor with safety zones, crew hazard reports, the airlock, science targets, the route from A to B and the point-of-no-return contour"></canvas>
+        <canvas id="map" role="img" aria-label="Map of the north wall and floor of Melas Chasma, built from the USGS HRSC and MOLA elevation model, with safety zones, crew hazard reports, the airlock, science targets, the route from A to B and the point-of-no-return contour"></canvas>
         <div class="zoomer" role="group" aria-label="Map zoom">
           <button type="button" id="z-in" aria-label="Zoom in" title="Zoom in"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
           <button type="button" id="z-out" aria-label="Zoom out" title="Zoom out"><svg class="ic" aria-hidden="true"><use href="#i-minus"/></svg></button>
@@ -476,16 +558,24 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
         </div>
       </div>
       <div class="readout" aria-label="Cost of the route from A to B">
-        <div><span>Distance</span><b id="r-len">&mdash;</b></div>
-        <div><span>Time</span><b id="r-time">&mdash;</b></div>
-        <div><span>Steps</span><b id="r-steps">&mdash;</b></div>
-        <div><span>Oxygen to get there</span><b id="r-o2">&mdash;</b></div>
-        <div><span>Oxygen margin on arrival</span><b id="r-after">&mdash;</b></div>
+        <div><span data-prov="route">Distance</span><b id="r-len">&mdash;</b></div>
+        <div><span data-prov="route">Time</span><b id="r-time">&mdash;</b></div>
+        <div><span data-prov="route">Steps</span><b id="r-steps">&mdash;</b></div>
+        <div><span data-prov="o2">Oxygen to get there</span><b id="r-o2">&mdash;</b></div>
+        <div><span data-prov="o2">Oxygen margin on arrival</span><b id="r-after">&mdash;</b></div>
+      </div>
+      <div class="actions">
+        <div class="btns">
+        <button type="button" id="go"><svg class="ic" aria-hidden="true"><use href="#i-walk"/></svg><span id="go-l">Walk there</span></button>
+        <button type="button" id="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg>Return to airlock</button>
+        <button type="button" id="reset"><svg class="ic" aria-hidden="true"><use href="#i-reset"/></svg>Reset EVA</button>
+      </div>
+      <div id="msg" aria-live="polite"></div>
       </div>
       <div class="insight">
         <div><canvas id="profile" role="img" aria-label="Elevation profile of the route from A to B, with caution ground marked in yellow"></canvas></div>
         <div>
-          <h5>Where the oxygen goes</h5>
+          <h5 data-prov="o2">Where the oxygen goes</h5>
           <div id="budget-bar" role="img" aria-label="Oxygen budget of the tank"></div>
           <ul id="budget-leg"></ul>
           <div id="budget-cap"></div>
@@ -493,15 +583,16 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
       </div>
       <div class="voice" role="group" aria-label="Voice control">
         <button type="button" class="tb" id="mic" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg><span id="mic-l">Speak</span></button>
-        <form id="cmdform"><input type="text" id="cmd" aria-label="Voice or typed command" autocomplete="off"><button type="submit" class="tb">Run</button></form>
+        <form id="cmdform"><input type="text" id="cmd" aria-label="Voice or typed command" autocomplete="off"><button type="submit" class="tb" id="cmd-run">Run</button></form>
         <div class="seg" role="group" aria-label="Voice language"><div class="row"><button type="button" data-vlang="en" aria-pressed="true">EN</button><button type="button" data-vlang="ru" aria-pressed="false">RU</button></div></div>
-        <label class="chk"><input type="checkbox" id="speak" checked>Spoken replies</label>
+        <label class="chk"><input type="checkbox" id="speak" checked><span id="speak-l">Spoken replies</span></label>
       </div>
       <div class="chips" id="chips" aria-label="Example commands"></div>
       <div id="vreply" aria-live="polite"></div>
       <div id="vnote"></div>
+      <div class="regionline"><b id="region" data-prov="dem"></b><span id="region-data"></span><label class="chk provsw"><input type="checkbox" id="prov">Show data provenance</label></div>
       <div class="legend"><span id="leg-name"></span><span id="leg-lo"></span><span id="leg-bar"></span><span id="leg-hi"></span></div>
-      <details class="keybox" id="keybox" open><summary>Map legend</summary>
+      <details class="keybox" id="keybox"><summary>Map legend</summary>
       <div class="keys">
         <span><i style="border-color:var(--ok)"></i>point of no return</span>
         <span><i style="border-color:var(--gold)"></i>golden line home</span>
@@ -509,13 +600,13 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
         <span><i style="border-color:var(--warn)"></i>route on caution ground</span>
         <span><i style="border-color:#9fb9d0;border-top-style:dotted"></i>the other route option</span>
         <span><i class="sq g"></i>safe</span>
-        <span><i class="sq y"></i>caution: loose sand, slope over 18&deg;, reported zone</span>
-        <span><i class="sq r"></i>no entry: slope over 30&deg;, RSL, reported red zone</span>
-        <span><i class="sq" style="background:var(--ice)"></i>restricted slope streaks (RSL)</span>
+        <span><i class="sq y"></i>caution: slope over 18&deg;, reported zone</span>
+        <span><i class="sq r"></i>no entry: slope over 25&deg;, reported red zone</span>
+        <span><i class="sq" style="background:var(--ice)"></i>slope 25&ndash;30&deg;: restricted, where slope streaks (RSL) can occur</span>
         <span><i class="sq" style="background:#3a100b;border:1px solid var(--line)"></i>outside the contour</span>
       </div>
       </details>
-      <div id="hover">Move over the map to read the safety class, elevation, slope, thermal inertia, dose rate and oxygen cost for any cell. Map area 10.2 &times; 6.4 km, 40 m cells.</div>
+      <div id="hover">Move over the map to read the safety class, elevation, slope, soil, dose rate and oxygen cost for any cell, each with its source. Map area 10.2 &times; 6.4 km, 40 m cells.</div>
       <form id="hzform" class="hzform" hidden>
         <h4>Report a hazard zone</h4>
         <p class="note" id="hz-where">Tap the map where the hazard is.</p>
@@ -541,53 +632,32 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
         <div id="tgt" hidden>
           <h4 id="t-name"></h4><div class="note" id="t-note"></div>
           <div class="kv">
-            <span>Route length</span><b id="t-len" class="num"></b>
-            <span>Travel time</span><b id="t-time" class="num"></b>
-            <span>Steps</span><b id="t-steps" class="num"></b>
-            <span>Caution ground on the route</span><b id="t-caut" class="num"></b>
-            <span>O&#8322; to get there</span><b id="t-out" class="num"></b>
-            <span>O&#8322; home from there</span><b id="t-back" class="num"></b>
-            <span>Margin on arrival</span><b id="t-after" class="num"></b>
+            <span data-prov="route">Route length</span><b id="t-len" class="num"></b>
+            <span data-prov="route">Travel time</span><b id="t-time" class="num"></b>
+            <span data-prov="route">Steps</span><b id="t-steps" class="num"></b>
+            <span data-prov="route">Caution ground on the route</span><b id="t-caut" class="num"></b>
+            <span data-prov="o2">O&#8322; to get there</span><b id="t-out" class="num"></b>
+            <span data-prov="o2">O&#8322; home from there</span><b id="t-back" class="num"></b>
+            <span data-prov="o2">Margin on arrival</span><b id="t-after" class="num"></b>
           </div>
           <div class="verdict" id="t-verdict"></div>
           <div class="verdict muted" id="t-alt"></div>
         </div>
-        <div class="btns">
-          <button type="button" id="go"><svg class="ic" aria-hidden="true"><use href="#i-walk"/></svg><span id="go-l">Walk there</span></button>
-          <button type="button" id="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg>Return to airlock</button>
-          <button type="button" id="reset"><svg class="ic" aria-hidden="true"><use href="#i-reset"/></svg>Reset EVA</button>
-        </div>
-        <div id="msg" aria-live="polite"></div>
       </div>
       <div>
-        <div class="scihead"><span></span><span>Science target</span><span>MERJ</span><span>O&#8322;</span></div>
+        <div class="scihead"><span></span><span data-prov="pick">Science target</span><span>MERJ</span><span>O&#8322;</span></div>
         <div id="sci"></div>
-      </div>
-    </div>
-    <div class="below">
-      <div class="tgt">
-        <h4>Route warnings</h4>
-        <ul class="warns" id="warns"></ul>
-        <h4 style="margin-top:16px">Ground on this route</h4>
-        <div class="shots" id="photos"></div>
-      </div>
-      <div class="tgt">
-        <div class="cardhead"><h4>Hazard zones reported by the crew</h4>
-          <div class="tools"><button type="button" class="tb" id="hz-export" title="Save all reports to a file"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>Export</button><button type="button" class="tb" id="hz-import" title="Load reports from a file"><svg class="ic" aria-hidden="true"><use href="#i-up"/></svg>Import</button><input type="file" id="hz-file" accept="application/json,.json" hidden></div>
-        </div>
-        <div id="db-note"></div>
-        <div id="zlist"></div>
       </div>
     </div>
     </div>
     <div class="side">
       <div class="arbox">
-        <div class="tag">AR visor preview &middot; concept</div>
+        <div class="tag" data-prov="route">AR visor preview &middot; concept</div>
         <canvas id="ar" width="640" height="340" role="img" aria-label="First-person preview of the helmet display: the route drawn on the ground ahead, hazard patches in yellow and red, distance, time, steps and oxygen margin"></canvas>
         <p>How the same route could look on AR glasses or a helmet display. This is a browser preview, not a real headset.</p>
       </div>
       <div class="visor s-ok" id="visor" aria-live="polite">
-        <div class="tag">Visor HUD state</div>
+        <div class="tag" data-prov="o2">Visor HUD state</div>
         <div id="st-code">NOMINAL_EVA</div>
         <div id="st-text"></div>
         <div class="egress">
@@ -596,30 +666,44 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
         </div>
       </div>
       <div class="gauges">
-        <div class="wide"><span>Primary O&#8322; tank</span><b id="g-psi">1,500</b> <small>psia &middot; <span id="g-use" style="display:inline;color:var(--ink);letter-spacing:0">342</span> L usable</small>
+        <div class="wide"><span data-prov="sim">Primary O&#8322; tank</span><b id="g-psi">1,500</b> <small>psia &middot; <span id="g-use" style="display:inline;color:var(--ink);letter-spacing:0">342</span> L usable</small>
           <div class="track"><div class="fill b-ok" id="tankbar" style="width:61%"></div><u style="left:48.98%" title="1,200 psia"></u><u style="left:26.53%" title="650 psia"></u><u style="left:6.53%" title="160 psia"></u></div></div>
-        <div><span>O&#8322; to walk home</span><b id="g-ret">0</b> <small>L</small></div>
-        <div><span>Margin</span><b id="g-margin" class="num c-ok">+0</b> <small>L</small></div>
-        <div><span>Flow, 3 min average</span><b id="g-flow">0.00</b> <small>L/min</small></div>
-        <div><span>Time to reserve</span><b id="g-time">0 h 00 min</b></div>
-        <div><span>Fatigue F / &beta;</span><b><span id="g-fat" style="display:inline;font:inherit;color:inherit;letter-spacing:0">0.20</span> / <span id="g-beta" style="display:inline;font:inherit;color:inherit;letter-spacing:0">0.90</span></b></div>
-        <div><span>EVA clock</span><b id="g-el">0 h 00 min</b></div>
-        <div><span>Walked</span><b id="g-walk">0.00</b> <small>km</small></div>
-        <div><span>Dose this EVA</span><b id="g-dose">0.0</b> <small>&micro;Sv</small></div>
-      </div>
-      <div class="logbox">
-        <div class="cardhead"><h4>EVA log</h4><div class="tools"><button type="button" class="tb" id="rep-dl" title="Download the log, track and hazard reports as a file"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>Report</button></div></div>
-        <ul id="log"></ul>
+        <div><span data-prov="o2">O&#8322; to walk home</span><b id="g-ret">0</b> <small>L</small></div>
+        <div><span data-prov="o2">Margin</span><b id="g-margin" class="num c-ok">+0</b> <small>L</small></div>
+        <div><span data-prov="o2">Flow, 3 min average</span><b id="g-flow">0.00</b> <small>L/min</small></div>
+        <div><span data-prov="o2">Time to reserve</span><b id="g-time">0 h 00 min</b></div>
+        <div><span data-prov="input">Fatigue F / &beta;</span><b><span id="g-fat" style="display:inline;font:inherit;color:inherit;letter-spacing:0">0.20</span> / <span id="g-beta" style="display:inline;font:inherit;color:inherit;letter-spacing:0">0.90</span></b></div>
+        <div><span data-prov="sim">EVA clock</span><b id="g-el">0 h 00 min</b></div>
+        <div><span data-prov="sim">Walked</span><b id="g-walk">0.00</b> <small>km</small></div>
+        <div><span data-prov="rad">Dose this EVA</span><b id="g-dose">0.0</b> <small>&micro;Sv</small></div>
+        <div class="wide jumpcell"><span id="g-met-l" data-prov="o2">Metabolic rate</span><b id="g-met">0.0</b> <small>MET &middot; <span id="g-w" style="display:inline;color:var(--ink);letter-spacing:0">0</span> W</small><a class="jump" href="#model">Formula and interactive sandbox &darr;</a></div>
       </div>
       <div class="ctl">
-        <div><label for="tank">Tank pressure <output id="tank-out" for="tank"></output></label>
+        <div><label for="tank"><span data-prov="input">Tank pressure</span> <output id="tank-out" for="tank"></output></label>
           <input type="range" id="tank" min="160" max="2450" step="10" value="1500"></div>
-        <div><label for="fat">Fatigue index F <output id="fat-out" for="fat"></output></label>
+        <div><label for="fat"><span data-prov="input">Fatigue index F</span> <output id="fat-out" for="fat"></output></label>
           <input type="range" id="fat" min="0" max="100" step="1" value="20"></div>
+      </div>
+      <div class="tgt">
+        <h4 data-prov="route">Route warnings</h4>
+        <ul class="warns" id="warns"></ul>
+        <h4 style="margin-top:16px" data-prov="img">Ground like this, seen from orbit</h4>
+        <div class="shots" id="photos"></div>
+      </div>
+      <div class="tgt">
+        <div class="cardhead"><h4 data-prov="crew">Hazard zones reported by the crew</h4>
+          <div class="tools"><button type="button" class="tb" id="hz-export" title="Save all reports to a file"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>Export</button><button type="button" class="tb" id="hz-import" title="Load reports from a file"><svg class="ic" aria-hidden="true"><use href="#i-up"/></svg>Import</button><input type="file" id="hz-file" accept="application/json,.json" hidden></div>
+        </div>
+        <div id="db-note"></div>
+        <div id="zlist"></div>
+      </div>
+      <div class="logbox">
+        <div class="cardhead"><h4 data-prov="sim">EVA log</h4><div class="tools"><button type="button" class="tb" id="rep-dl" title="Download the log, track and hazard reports as a file"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg>Report</button></div></div>
+        <ul id="log"></ul>
       </div>
     </div>
   </div>
-  <p class="demo-note">The terrain in this demo is generated in the browser. It is shaped after landforms seen in Melas Chasma (canyon wall, layered mound, dark dunes, block field, fault troughs) but it is not real elevation data. The oxygen model, the thresholds and the point-of-no-return rule are the ones in our specification. MERJ is science gain per litre of oxygen, &times;1000. Science targets are numbered S1 to S5; the letters A and B mark the start and the destination of the route. Two hazard reports are preloaded as samples and can be removed. Pinch, or use the buttons on the map, to zoom; drag to move a zoomed map.</p>
+  <p class="demo-note"><strong>What is real and what is not.</strong> The elevation is real: a window of the USGS HRSC and MOLA blended elevation model (200 m per pixel) over the north wall of Melas Chasma, interpolated to 40 m cells. Slopes, safety classes, routes, oxygen, time and steps are the team&rsquo;s model on top of it and are marked <span class="pv pv-model">MODEL</span>. The tank, the clock, the dose and the walk itself are marked <span class="pv pv-simulated">SIMULATED</span>. Science targets S1 to S5 are illustrative positions, and two hazard reports are preloaded as samples. The letters A and B mark the start and the destination of the route. Pinch, or use the buttons on the map, to zoom; drag to move a zoomed map. <a href="attribution.html">Data &amp; Attribution</a></p>
 </div></section>
 
 <section id="problem"><div class="wrap">
@@ -628,9 +712,9 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
     <h2>Today&rsquo;s Mars maps show the ground, not the walk.</h2>
   </div>
   <ul class="facts" style="margin:0 0 22px">
-    <li><svg class="ic lg" aria-hidden="true"><use href="#i-radio"/></svg><b>4&ndash;24 min</b><span>one-way radio delay between Mars and Earth</span></li>
-    <li><svg class="ic lg" aria-hidden="true"><use href="#i-weight"/></svg><b>0.38 g</b><span>Mars gravity; suit and astronaut weigh 725.6 N together</span></li>
-    <li><svg class="ic lg" aria-hidden="true"><use href="#i-o2"/></svg><b>0.38 &rarr; 2.4+ L/min</b><span>oxygen use from standing still to climbing loose sand</span></li>
+    <li><svg class="ic lg" aria-hidden="true"><use href="#i-radio"/></svg><b>4&ndash;24 min</b><span data-prov="ref">one-way radio delay between Mars and Earth</span></li>
+    <li><svg class="ic lg" aria-hidden="true"><use href="#i-weight"/></svg><b>0.38 g</b><span data-prov="ref">Mars gravity; suit and astronaut weigh 725.6 N together</span></li>
+    <li><svg class="ic lg" aria-hidden="true"><use href="#i-o2"/></svg><b>0.38 &rarr; 2.4+ L/min</b><span data-prov="o2">oxygen use from standing still to climbing loose sand</span></li>
     <li><svg class="ic lg" aria-hidden="true"><use href="#i-layers"/></svg><b>6 data layers</b><span>optical, terrain, thermal, geology, atmosphere, radiation</span></li>
   </ul>
   <div class="cols">
@@ -701,14 +785,14 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
   <div class="head">
     <div class="eyebrow">Open data</div>
     <h2>Six layers on one visor</h2>
-    <p>The challenge asks for at least three kinds of data. AeroMargin combines six, all of them open.</p>
+    <p>The challenge asks for at least three kinds of data. The design combines six, all of them open. In this build, topography is live data (a USGS elevation tile), the optical layer is six HiRISE images, and radiation is one Curiosity RAD figure. Thermal, geology and atmosphere are designed but not loaded. <a href="attribution.html">Data &amp; Attribution</a></p>
   </div>
   <div class="scroll"><table>
     <thead><tr><th>Layer</th><th>Data and resolution</th><th>Source</th><th>What the HUD shows</th></tr></thead>
     <tbody>
       <tr><td>Optical</td><td>CTX mosaic, 5 m/px, covers 99.5% of Mars; HiRISE, ~25 cm/px for selected areas</td><td><a href="https://murray-lab.caltech.edu/CTX/">Caltech Murray Lab</a>, <a href="https://hirise.lpl.arizona.edu/">HiRISE</a></td><td>Map background and a real view of the target</td></tr>
       <tr><td>Topography</td><td>MOLA + HRSC blended DEM, 200 m/px; CTX DTMs, 20 m posting; slope and aspect maps</td><td><a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m">USGS</a>, <a href="https://jmars.asu.edu/">JMARS</a>, <a href="https://stac.astrogeology.usgs.gov/docs/data/mars/ctxdtms">CTX DTM</a></td><td>Height profile, steepness, no-go zones</td></tr>
-      <tr><td>Thermal</td><td>THEMIS infrared day and night mosaics, ~100 m/px; TES thermal inertia</td><td>USGS, JMARS, Mars Trek</td><td>Firm rock versus loose sand</td></tr>
+      <tr><td>Thermal</td><td>THEMIS infrared day and night mosaics, ~100 m/px; TES thermal inertia</td><td>USGS, JMARS, Mars Trek</td><td>Firm rock vs. loose sand (planned: 100 m THEMIS thermal inertia refined with 25 cm HiRISE ripple morphology; not loaded in this build)</td></tr>
       <tr><td>Geology</td><td>Regional geologic map 1:2,000,000 (CC0); Candor Colles HiRISE map; CRISM and OMEGA spectra</td><td><a href="https://www.usgs.gov/data/geologic-map-valles-marineris-region-mars">USGS</a></td><td>Rock types, sulfates, science targets</td></tr>
       <tr><td>Atmosphere</td><td>Mars Climate Database v6.1: temperature, pressure and dust by season and hour</td><td><a href="https://www-mars.lmd.jussieu.fr/">MCD, LMD Paris</a></td><td>Pressure, temperature, dust forecast</td></tr>
       <tr><td>Radiation</td><td>Curiosity RAD surface measurements; MAVEN space weather event catalogue</td><td>MSL RAD, MAVEN</td><td>Dose so far and solar event warning</td></tr>
@@ -723,7 +807,7 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
       <tr><td><a href="https://astrogeology-usgs.hub.arcgis.com/pages/interactive-maps-mars">USGS&ndash;NASA geologic hub</a></td><td>Geologic maps and elevation models for slope and slip risk</td><td>STAC API, Cloud-Optimized GeoTIFF, <code>EPSG:104905</code></td></tr>
       <tr><td><a href="https://trek.nasa.gov/mars/">NASA Mars Trek WMTS</a></td><td>Ready map tiles: base image, slope, thermal inertia, albedo</td><td><code>trek.nasa.gov/tiles/Mars/EQ/{LayerID}/1.0.0/default/default028mm/{Z}/{Y}/{X}.jpg</code></td></tr>
     </tbody></table></div>
-  <p class="muted" style="margin-top:14px;font-size:15px;max-width:90ch">Layer IDs used for calibration: <code>Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw</code>, <code>TES_Thermal_Inertia</code>, <code>THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018</code>, <code>curiosity_hirise_mosaic</code>, <code>Gale_CTX_BlockAdj_dd</code>.</p>
+  <p class="muted" style="margin-top:14px;font-size:15px;max-width:90ch">Mars Trek layer IDs named in the specification (not loaded in this build): <code>Mars_MOLA_blend200ppx_HRSC_ClrShade_clon0dd_200mpp_lzw</code>, <code>TES_Thermal_Inertia</code>, <code>THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018</code>, <code>curiosity_hirise_mosaic</code>, <code>Gale_CTX_BlockAdj_dd</code>.</p>
 </div></section>
 
 <section id="model"><div class="wrap">
@@ -735,7 +819,7 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
   <div class="explorer">
     <div><canvas id="mx" role="img" aria-label="Chart of oxygen flow in litres per minute against slope, for the chosen soil, loose sand and bedrock"></canvas></div>
     <div>
-      <h3>Try the model</h3>
+      <h3 data-prov="o2">Try the model</h3>
       <p>Oxygen flow against slope. Move the sliders and watch the gold point.</p>
       <label for="mx-slope">Slope <output id="mx-slope-out" for="mx-slope"></output></label><input type="range" id="mx-slope" min="-25" max="30" step="1" value="8">
       <label for="mx-soil">Soil <output id="mx-soil-out" for="mx-soil"></output></label><input type="range" id="mx-soil" min="150" max="452" step="2" value="296">
@@ -747,13 +831,14 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
     <div class="step">
       <div><h3>Metabolic power of each step</h3>
         <p>Suited mass is 195 kg (80 kg astronaut, 115 kg suit and life support pack). Standing in a pressurised suit costs 115 W. Climbing costs far more than walking flat; gentle descent gives a little back; soft ground adds a sink term scaled by thermal inertia.</p>
-        <p class="muted">Bedrock I = 452 TIU, average regolith ~295, loose wind-blown sand under 180.</p></div>
+        <p class="muted">Soil reference values: bedrock 452 TIU, average regolith about 295, loose wind-blown sand under 180. They come from Curiosity REMS ground measurements at Gale crater and are meant to be read against THEMIS thermal inertia maps of Melas Chasma. This build has no THEMIS tile, so every cell uses 295 TIU <span class="pv pv-model">MODEL</span>.</p></div>
       <div class="eq">W<sub>met</sub> = 115 + 0.28&middot;m&middot;g&middot;v + 1.95&middot;m&middot;g&middot;v&middot;max(0, sin&phi;)<br>&nbsp;&nbsp;&minus; 0.45&middot;m&middot;g&middot;v&middot;max(0, &minus;sin&phi;) + 38&middot;(452 / I<sub>cell</sub>)<sup>1.65</sup><br><span class="muted">m&middot;g = 195 kg &times; 3.721 m/s&sup2; = 725.6 N</span></div>
     </div>
     <div class="step">
       <div><h3>Watts to oxygen</h3>
         <p>One standard litre of oxygen releases 20.2 kJ. At 280 W the suit uses 0.866 L/min. Tank pressure falls about 4.38 psia per litre.</p>
-        <p>The time-left readout never divides by the instant flow. It uses a 3-minute moving average, so the clock does not jump from 2 hours to 7 when the astronaut stops to rest.</p></div>
+        <p>The time-left readout never divides by the instant flow. It uses a 3-minute moving average, so the clock does not jump from 2 hours to 7 when the astronaut stops to rest. The average steadies only that countdown on the visor: route cost and the point-of-no-return contour use the slope and soil of each cell directly, with no lag.</p>
+        <p class="muted">In metabolic equivalents: 1 MET is 1.163 W per kg of body mass, so the 80 kg crew member standing in the suit is at 1.2 MET and a steady walk is near 3.4 MET. The relation follows the NASA Human Integration Design Handbook (NASA/SP-2010-3407/REV1); the coefficients are the team&rsquo;s <span class="pv pv-model">MODEL</span>.</p></div>
       <div class="eq">V<sub>O2</sub> = 0.00297&middot;W<sub>met</sub> + 0.035 &nbsp;L/min<br>T<sub>left</sub> = (V<sub>now</sub> &minus; V<sub>reserve</sub>) / V<sub>EMA, 180 s</sub><br>V<sub>EMA,t</sub> = &alpha;&middot;V<sub>t</sub> + (1 &minus; &alpha;)&middot;V<sub>EMA,t&minus;1</sub>, &nbsp;&alpha; = 1/180</div>
     </div>
     <div class="step">
@@ -764,7 +849,7 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
     </div>
     <div class="step">
       <div><h3>The safest route, not the shortest</h3>
-        <p>Every cell gets a safety class. Red is closed: slopes over 30&deg;, restricted RSL slopes and red zones reported by the crew. Yellow is caution: loose sand under 200 TIU, slopes over 18&deg;, reported caution zones and a two-cell buffer around red zones. Everything else is green.</p>
+        <p>Every cell gets a safety class from the elevation model. Red is closed: slopes over 30&deg;, slopes of 25&ndash;30&deg; where seasonal streaks can occur, and red zones reported by the crew. Yellow is caution: slopes over 18&deg;, soil under 200 TIU where soil data exists, reported caution zones and a two-cell buffer around red zones. Everything else is green.</p>
         <p>The safest route runs the same search with oxygen cost multiplied on yellow ground, so it goes around hazards even when that is longer. The shortest option stays one tap away. Steps are route length divided by a 0.6 m suited stride.</p></div>
       <div class="eq">cost<sub>safe</sub>(cell) = E<sub>O2</sub>(cell) &middot; k<sub>class</sub><br>k = 1 green &middot; 4 caution terrain &middot; 3 buffer or level 1 report &middot; 8 level 2 report<br>red cells: never entered<br><span class="muted">steps &asymp; route length / 0.6 m</span></div>
     </div>
@@ -811,7 +896,7 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
   <div class="scroll"><table>
     <thead><tr><th>Factor</th><th>What is known</th><th>HUD response</th></tr></thead>
     <tbody>
-      <tr><td>Radiation</td><td>Curiosity RAD measured ~0.64 mSv/day on the surface and ~1.84 mSv/day in transit. During a solar particle event the rate can exceed 500 &micro;Sv/h.</td><td>Dose counter per walk and per mission; solar event warning; nearest wall shadow</td></tr>
+      <tr><td>Radiation</td><td><a href="https://mars.nasa.gov/msl/spacecraft/instruments/rad/">Curiosity RAD</a> measured ~0.64 mSv/day on the surface at Gale crater near solar maximum, and ~1.84 mSv/day in transit. This is an average for one place and period, not a global constant. During a solar particle event the rate can exceed 500 &micro;Sv/h.</td><td>Dose counter per walk and per mission; solar event warning; nearest wall shadow</td></tr>
       <tr><td>Pressure and temperature</td><td>Mean pressure ~6.75 hPa, about 0.67% of Earth&rsquo;s; mean surface temperature ~210 K (&minus;63 &deg;C). Pressure rises toward the canyon floor.</td><td>Outside temperature and expected change along the route</td></tr>
       <tr><td>Dust and visibility</td><td>The MARCI camera saw low hazes confined by the canyon relief in the landslide season.</td><td>Visibility indicator; switch from camera to terrain map when the picture is poor</td></tr>
       <tr><td>Slopes and landslides</td><td>Walls slump; blocks 100&ndash;500 m across lie on the floor of Melas.</td><td>Route coloured by steepness from the elevation model</td></tr>
@@ -825,24 +910,20 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
     <div class="eyebrow">What this is and is not</div>
     <h2>Honest limits</h2>
   </div>
-  <div class="cols">
-    <ul class="plain">
-      <li>The demo terrain is synthetic. Real MOLA, HRSC and CTX elevation tiles for Melas Chasma are the next step.</li>
-      <li>Soil and slope coefficients were set from Gale crater data (Curiosity, REMS thermal inertia, Mount Sharp traverse), not from the canyon.</li>
-      <li>Radiation figures come from Gale crater near solar maximum. Treat them as an estimate for Mars in general.</li>
-      <li>Whether the thicker air column on the canyon floor shields better than the plateau is a hypothesis. No one has measured it inside the canyon.</li>
-    </ul>
-    <ul class="plain">
-      <li>No rover has worked inside Valles Marineris, so every photograph here is taken from orbit. First-person frames would come from Curiosity and Perseverance and be labelled as analogues.</li>
-      <li>Walking speed of 0.8 m/s, the braking penalty on descents steeper than 12&deg;, the radiation weight in MERJ and the target uncertainties are demo assumptions.</li>
-      <li>Canyon dimensions differ between sources (3,000&ndash;4,000 km long, 7&ndash;9 km deep).</li>
-      <li>Hazard reports are saved in the browser and shared between open tabs. Sharing between devices needs a database address in <code>AEROMARGIN_DB_URL</code>; without it each device keeps its own copy.</li>
-      <li>Sound cues, the theme and the call sign are saved in this browser only. The EVA report is a file you download; nothing is sent anywhere.</li>
-      <li>Voice input uses the browser&rsquo;s speech recognition (Chrome, Edge, Safari). Every command can also be typed. The AR view is a preview in the browser, not a headset build.</li>
-      <li>Terrain photos are orbital HiRISE images of the same kind of landform, not pictures of the exact spot. The 0.6 m step length and the route penalty factors are demo assumptions.</li>
-      <li>Planned build: Python and GDAL for data, a TypeScript or Rust core for routing in under 15 ms per frame, React with MapLibre and WebXR for tablet and visor.</li>
-    </ul>
-  </div>
+  <ul class="limits">
+    <li><b>Real elevation, coarse grid:</b> the map uses the USGS HRSC and MOLA blended elevation model at 200 m per pixel, interpolated to 40 m cells. Anything smaller than about 200 m, such as boulders, ripples and small scarps, is not in it. CTX and HiRISE elevation models are the next step.</li>
+    <li><b>No soil data loaded:</b> no THEMIS thermal inertia tile is bundled. The model uses one regolith value, 295 TIU, for every cell, so loose sand is not found from data. It can only enter as a crew hazard report.</li>
+    <li><b>Gale crater soil calibration:</b> soil and slope coefficients were set from Gale crater data (Curiosity, REMS thermal inertia, Mount Sharp traverse), not from the canyon.</li>
+    <li><b>Radiation is one figure:</b> 0.64 mSv/day is the Curiosity RAD average at Gale crater near solar maximum, scaled here by sky view from the elevation model. No one has measured dose inside Valles Marineris, and better shielding on the canyon floor is a hypothesis.</li>
+    <li><b>The oxygen model is ours:</b> it follows the NASA Human Integration Design Handbook in form. The coefficients are the team&rsquo;s and have not been checked against suit test data.</li>
+    <li><b>Slope rule for RSL:</b> every slope between 25&deg; and 30&deg; is treated as restricted, because seasonal streaks occur on such slopes. This is a rule, not a map of known RSL sites.</li>
+    <li><b>Orbital-only imagery:</b> no rover has worked inside Valles Marineris, so every photograph is taken from orbit and shows the same kind of ground, not the mapped spot. First-person frames would come from Curiosity and Perseverance and be labelled as analogues.</li>
+    <li><b>Demo assumptions:</b> walking speed 0.8 m/s, the braking penalty on descents steeper than 12&deg;, the 0.6 m step, the route penalty factors, the radiation weight in MERJ and the target uncertainties.</li>
+    <li><b>Illustrative targets:</b> S1 to S5 are positions the team picked on the real grid; their geology is not mapped. Canyon dimensions also differ between sources (3,000&ndash;4,000 km long, 7&ndash;9 km deep).</li>
+    <li><b>Hazard reports stay local:</b> they are saved in the browser and shared between open tabs. Sharing between devices needs a database address in <code>AEROMARGIN_DB_URL</code>; without it each device keeps its own copy.</li>
+    <li><b>Browser-only features:</b> voice input uses the browser&rsquo;s speech recognition (Chrome, Edge, Safari), and every command can be typed. Sound, theme and call sign are saved in this browser. The EVA report is a file you download. The AR view is a preview, not a headset build.</li>
+    <li><b>Planned build:</b> Python and GDAL for data (the elevation tile here is already cut with GDAL), a TypeScript or Rust core for routing in under 15 ms per frame, React with MapLibre and WebXR for tablet and visor.</li>
+  </ul>
 </div></section>
 
 <section id="sources"><div class="wrap">
@@ -872,9 +953,13 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
     <li><a href="https://www.nasa.gov/sites/default/files/atoms/files/mars-c-abstracts_in_order_of_presentation10242015_0.pdf">First Landing Site / Exploration Zone Workshop, 2015 (abstracts)</a></li>
     <li><a href="https://ntrs.nasa.gov/api/citations/20150021128/downloads/20150021128.pdf">Lee et al.: Noctis Landing, NASA NTRS</a></li>
     <li><a href="https://mars.nasa.gov/mars2020/multimedia/raw-images/">NASA Mars 2020 raw images</a></li>
+    <li><a href="https://www.nasa.gov/hidh/">NASA: Human Integration Design Handbook, NASA/SP-2010-3407/REV1 (2014)</a></li>
+    <li><a href="https://mars.nasa.gov/msl/spacecraft/instruments/rad/">NASA: Curiosity RAD instrument</a>; Hassler et al. (2014), Science 343, 1244797</li>
+    <li>Fergason, Hare &amp; Laura (2018): HRSC and MOLA Blended Digital Elevation Model at 200 m v2, USGS Astrogeology (the elevation tile of the demo)</li>
+    <li>Fergason, Christensen &amp; Kieffer (2006): High-resolution thermal inertia derived from THEMIS, <a href="https://themis.asu.edu/">THEMIS, ASU</a>, doi:10.1029/2006JE002735</li>
     <li>Suit and physiology: NASA xEMU PLSS Oxygen Regulator (ICES-2023-0007781); NASA EMU LSS/SSA Data Book (JSC-E-DAA-TN55224); NASA TP-2010-216115, Planetary Suit Metabolic Costs; NASA BASALT EVA physiology (Frontiers in Physiology, 2022); Gale crater REMS thermal inertia (PMC4508907); MSL RAD surface measurements.</li>
   </ol>
-  <p class="muted" style="margin-top:22px;font-size:15px;max-width:90ch">Image credits: all photographs on this page are HiRISE images, NASA/JPL-Caltech/UArizona. Data credits for the planned build: HRSC, ESA/DLR/FU Berlin, CC BY-SA 3.0 IGO; CTX mosaic, NASA/JPL/MSSS/The Murray Lab; MOLA data is CC0.</p>
+  <p class="muted" style="margin-top:22px;font-size:15px;max-width:90ch">Image credits: all photographs on this page are HiRISE images, NASA/JPL-Caltech/UArizona. Elevation in the demo: HRSC and MOLA blended DEM, USGS Astrogeology; HRSC data ESA/DLR/FU Berlin, CC BY-SA 3.0 IGO; MOLA data NASA, CC0. Planned build: CTX mosaic, NASA/JPL/MSSS/The Murray Lab. Full table: <a href="attribution.html">Data &amp; Attribution</a>.</p>
 </div></section>
 
 <footer><div class="wrap">
@@ -884,6 +969,8 @@ header.hero{position:relative;color:#f3e6d6;border-bottom:1px solid var(--line);
   </ul>
   <span>AeroMargin EVA Suite, built for the NASA Space Apps Challenge 2026.</span>
   <span>A student project that uses public NASA, ESA and USGS data. It is not an official NASA product and carries no NASA insignia.</span>
+  <span>This project was created for the NASA Space Apps Challenge. NASA does not endorse this product.</span>
+  <a class="attr" href="attribution.html">Data &amp; Attribution</a>
 </div></footer>
 <dialog id="settings" class="dlg" aria-labelledby="set-h">
   <div class="dlg-head"><h3 id="set-h">Settings</h3><button type="button" class="iconbtn" id="set-close" aria-label="Close settings"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button></div>

@@ -1,0 +1,22 @@
+# Re-cuts the elevation window from the USGS-hosted source raster. Run by hand from the Actions tab.
+# The result is uploaded as an artifact; copy dem.f32 into data/terrain/melas and update data/manifest.json.
+name: Fetch terrain window
+on:
+  workflow_dispatch:
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GDAL
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin && pip install --quiet numpy tifffile
+      - name: Cut the window
+        run: |
+          set -o pipefail
+          mkdir -p out && SKIP_TI=1 OUT_ROOT=out bash tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200 2>&1 | tee out/fetch.log
+          sha256sum out/melas/dem.f32
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terrain-melas
+          path: out

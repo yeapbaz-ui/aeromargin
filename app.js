@@ -1,117 +1,91 @@
-/* AeroMargin demo core + UI. Team Cheese Pizza, NASA Space Apps 2026.
-   Terrain is synthetic (procedural), shaped after Melas Chasma landforms.
-   The oxygen model, thresholds and PNR rule follow the team's technical specification. */
+/* AeroMargin core + UI. Team Cheese Pizza, NASA Space Apps 2026.
+
+   What is data and what is model
+   - Elevation is real: a window of the USGS "HRSC and MOLA Blended DEM Global 200m v2" over the north wall of
+     Melas Chasma, stored in data/terrain/melas and checked against data/manifest.json before use.
+   - Slope, sky view, safety classes, routes, oxygen, time, steps and dose are computed from it by the team's model.
+     They are labelled MODEL or SIMULATED in the interface. Nothing here is an official NASA value. */
 var AeroCore = (function () {
   'use strict';
   var W = 256, H = 160, CELL = 40, N = W * H;
   var MG = 195 * 3.721; // suited mass 195 kg in Mars gravity = 725.6 N
   var P = {
     Wbase: 115, c1: 0.28, cup: 1.95, cdown: 0.45, Wsink: 38, Ibed: 452, exp: 1.65,
-    k: 0.00297, leak: 0.035, psiPerL: 4.38, reserve: 45, kappa: 0.55,
-    doseRef: 26.7,            // microSv/h, = 0.64 mSv/day (Curiosity RAD, Gale crater)
+    Iref: 295,                // regolith reference used for every cell when no soil tile is loaded (team value)
+    kJperL: 20.2,             // energy released per standard litre of oxygen (team value)
+    leak: 0.035, psiPerL: 4.38, reserve: 45, kappa: 0.55,
+    mBody: 80,                // crew member body mass, kg (reference for MET)
+    wPerMetKg: 1.163,         // 1 MET = 1 kcal/kg/h = 1.163 W/kg (definition)
+    doseDaily: 0.64,          // mSv/day on the surface: MSL RAD, Gale crater, 2012-2013 average
     vNom: 0.8, vShed: 0.65,   // walking speed m/s (0.8 is a demo assumption; 0.65 from the spec)
     brake: 1.2,               // braking penalty below -12 deg (demo assumption)
     stride: 0.6,              // suited step length in metres (demo assumption)
+    slopeCaution: 18, slopeRestricted: 25, slopeBlock: 30, sandTI: 200,
     sigmaNoise: 0.25, lambdaRad: 0.02
   };
-
-  function hash(ix, iy, s) {
-    var h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(s, 1442695041)) | 0;
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296;
-  }
-  function vnoise(x, y, s) {
-    var ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
-    var sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-    var a = hash(ix, iy, s), b = hash(ix + 1, iy, s), c = hash(ix, iy + 1, s), d = hash(ix + 1, iy + 1, s);
-    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
-  }
-  function fbm(x, y, s, oct) {
-    var v = 0, a = 0.5, f = 1, t = 0;
-    for (var i = 0; i < oct; i++) { v += a * vnoise(x * f, y * f, s + i * 17); t += a; a *= 0.5; f *= 2; }
-    return v / t;
-  }
-  function sstep(e0, e1, x) { var t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); }
-  function mix(a, b, t) { return a + (b - a) * t; }
+  P.k = 60 / (P.kJperL * 1000);          // litres of O2 per minute per watt = 0.00297
+  P.doseRef = P.doseDaily * 1000 / 24;   // the same RAD figure in microSv/h = 26.7
 
   var HAB = { x: 40, y: 112 };
-  var MOUND = { x: 150, y: 92, s: 16, h: 260 };
 
-  function rawHeight(x, y, out) {
-    var xm = x * CELL, ym = y * CELL, v = y / H;
-    var h = (fbm(xm / 2200, ym / 2200, 11, 3) - 0.5) * 150 + (fbm(xm / 520, ym / 520, 29, 2) - 0.5) * 26;
-    // north canyon wall with a wavy foot and a talus apron
-    var edge = 0.27 + 0.12 * (fbm(xm / 1800, 3.3, 5, 2) - 0.5);
-    var wall = sstep(edge, edge - 0.24, v);
-    wall *= 1 + 0.15 * (vnoise(xm / 300, ym / 900, 7) - 0.5);
-    var talus = sstep(edge + 0.14, edge, v);
-    h += 1900 * wall + 180 * talus;
-    // layered sulfate mound
-    var dx = x - MOUND.x, dy = y - MOUND.y;
-    var g = Math.exp(-(dx * dx + dy * dy) / (2 * MOUND.s * MOUND.s));
-    var hm = MOUND.h * g, u = hm / 40, q = (Math.floor(u) + sstep(0.35, 0.65, u - Math.floor(u))) * 40;
-    h += mix(hm, q, 0.3);
-    // block field in the south-east
-    var bx = x - 214, by = y - 126, bf = Math.exp(-(bx * bx + by * by) / (2 * 20 * 20));
-    var blk = sstep(0.56, 0.62, vnoise(xm / 260, ym / 260, 41)) * sstep(0.15, 0.4, bf);
-    h += 45 * blk;
-    // two graben (fault troughs) in the south
-    var gr = 0;
-    for (var i = 0; i < 2; i++) {
-      var ox = 96 + i * 4, oy = 148 - i * 15, ux = 0.944, uy = -0.33;
-      var rx = x - ox, ry = y - oy;
-      var along = rx * ux + ry * uy, across = Math.abs(rx * -uy + ry * ux) * CELL;
-      gr = Math.max(gr, sstep(300, 100, across) * sstep(-14, -4, along) * sstep(52, 40, along));
+  function cubic(a, b, c, d, t) { return b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a))); }
+  /**
+   * Catmull-Rom bicubic sample of a raster at fractional pixel-centre coordinates.
+   * Source: interpolation by the team; the samples themselves come from the DEM tile.
+   */
+  function sampleCubic(r, px, py) {
+    var ix = Math.floor(px), iy = Math.floor(py), tx = px - ix, ty = py - iy, row = [0, 0, 0, 0];
+    for (var j = -1; j <= 2; j++) {
+      var yy = Math.min(r.height - 1, Math.max(0, iy + j)), o = yy * r.width;
+      var x0 = Math.min(r.width - 1, Math.max(0, ix - 1)), x1 = Math.min(r.width - 1, Math.max(0, ix)), x2 = Math.min(r.width - 1, Math.max(0, ix + 1)), x3 = Math.min(r.width - 1, Math.max(0, ix + 2));
+      row[j + 1] = cubic(r.data[o + x0], r.data[o + x1], r.data[o + x2], r.data[o + x3], tx);
     }
-    h -= 50 * gr;
-    if (out) { out.wall = wall; out.talus = talus; out.g = g; out.blk = blk; out.gr = gr; }
-    return h;
+    return cubic(row[0], row[1], row[2], row[3], ty);
+  }
+  /** Bilinear sample that skips no-data pixels; returns NaN when all four neighbours are empty. Source: team. */
+  function sampleLinear(r, px, py) {
+    var ix = Math.floor(px), iy = Math.floor(py), tx = px - ix, ty = py - iy, acc = 0, wsum = 0;
+    for (var j = 0; j < 2; j++) for (var i = 0; i < 2; i++) {
+      var xx = Math.min(r.width - 1, Math.max(0, ix + i)), yy = Math.min(r.height - 1, Math.max(0, iy + j)), v = r.data[yy * r.width + xx];
+      if (!(v > r.minValid)) continue;
+      var w = (i ? tx : 1 - tx) * (j ? ty : 1 - ty); acc += v * w; wsum += w;
+    }
+    return wsum > 1e-6 ? acc / wsum : NaN;
   }
 
-  function build() {
-    var z = new Float32Array(N), I = new Float32Array(N), slope = new Float32Array(N), psi = new Float32Array(N);
-    var block = new Uint8Array(N), hazard = new Uint8Array(N), rsl = new Uint8Array(N), dune = new Float32Array(N), land = new Uint8Array(N);
-    var o = {}, x, y, i;
-    var zHab = rawHeight(HAB.x, HAB.y, null);
-    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
-      i = y * W + x;
-      var h = rawHeight(x, y, o), xm = x * CELL, ym = y * CELL;
-      var dh = Math.hypot(x - HAB.x, y - HAB.y), pad = sstep(10, 4, dh);
-      h = mix(h, zHab, pad);
-      z[i] = h - zHab;
-      var ti = 295 + (fbm(xm / 900, ym / 900, 53, 2) - 0.5) * 120;
-      var dn = sstep(0.53, 0.61, fbm(xm / 1500, ym / 1100, 77, 2)) * (1 - sstep(0.02, 0.2, o.wall)) * (1 - sstep(0.1, 0.35, o.g)) * (1 - o.blk);
-      ti = mix(ti, 160, dn);
-      ti = mix(ti, 452, sstep(0.6, 0.68, fbm(xm / 1300 + 9, ym / 1300, 91, 2)) * (1 - dn));
-      ti = mix(ti, 240, o.talus * (1 - sstep(0.1, 0.4, o.wall)) * 0.8);
-      ti = mix(ti, 430, sstep(0.25, 0.6, o.wall));
-      ti = mix(ti, 410, sstep(0.15, 0.5, o.g));
-      ti = mix(ti, 452, o.blk);
-      ti = mix(ti, 400, pad);
-      I[i] = ti; dune[i] = dn * (1 - pad);
-      // landform class for the terrain photo preview: 0 plain, 1 wall, 2 talus, 3 mound, 4 blocks, 5 graben, 6 dunes
-      land[i] = o.wall > 0.25 ? 1 : o.blk > 0.5 ? 4 : o.gr > 0.4 ? 5 : o.g > 0.2 ? 3 : dn > 0.5 ? 6 : o.talus > 0.5 ? 2 : 0;
+  /**
+   * Build the 256 x 160 walking grid (40 m cells) from the elevation tile and, when present, the thermal inertia tile.
+   * Source: elevation = USGS HRSC+MOLA blended DEM 200 m v2 (tile in data/terrain/melas), interpolated to 40 m.
+   *         Slope, sky view and the safety thresholds are derived by the team [MODEL].
+   * @param {{width:number,height:number,res:number,margin:number,data:Float32Array}} dem
+   * @param {?{width:number,height:number,res:number,margin:number,minValid:number,data:Float32Array}} ti
+   */
+  function build(dem, ti) {
+    var z = new Float32Array(N), zAbs = new Float32Array(N), I = new Float32Array(N), slope = new Float32Array(N), psi = new Float32Array(N);
+    var block = new Uint8Array(N), hazard = new Uint8Array(N), rsl = new Uint8Array(N), land = new Uint8Array(N), soilGap = new Uint8Array(N);
+    var x, y, i, k = CELL / dem.res, hab = HAB.y * W + HAB.x;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) zAbs[y * W + x] = sampleCubic(dem, (x + 0.5) * k - 0.5 + dem.margin, (y + 0.5) * k - 0.5 + dem.margin);
+    var zHab = zAbs[hab], zLo = Infinity, zHi = -Infinity;
+    for (i = 0; i < N; i++) { z[i] = zAbs[i] - zHab; if (zAbs[i] < zLo) zLo = zAbs[i]; if (zAbs[i] > zHi) zHi = zAbs[i]; }
+    // soil: measured thermal inertia where a tile has it; otherwise one regolith reference value, flagged as a gap
+    var tiLo = Infinity, tiHi = -Infinity, hasSoil = false;
+    if (ti) {
+      var vals = [], kt = CELL / ti.res;
+      for (i = 0; i < ti.data.length; i++) if (ti.data[i] > ti.minValid) vals.push(ti.data[i]);
+      vals.sort(function (a, b) { return a - b; });
+      var med = vals.length ? vals[vals.length >> 1] : P.Ibed; hasSoil = vals.length > 0;
+      for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+        i = y * W + x; var v = sampleLinear(ti, (x + 0.5) * kt - 0.5 + ti.margin, (y + 0.5) * kt - 0.5 + ti.margin);
+        if (!(v > 0)) { v = med; soilGap[i] = 1; } else { if (v < tiLo) tiLo = v; if (v > tiHi) tiHi = v; }
+        I[i] = v;
+      }
     }
+    if (!hasSoil) for (i = 0; i < N; i++) { I[i] = P.Iref; soilGap[i] = 1; }
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
       i = y * W + x;
       var xl = Math.max(0, x - 1), xr = Math.min(W - 1, x + 1), yu = Math.max(0, y - 1), yd = Math.min(H - 1, y + 1);
       var gx = (z[y * W + xr] - z[y * W + xl]) / ((xr - xl) * CELL), gy = (z[yd * W + x] - z[yu * W + x]) / ((yd - yu) * CELL);
       slope[i] = Math.atan(Math.hypot(gx, gy)) * 180 / Math.PI;
-    }
-    // recurring slope lineae sites: steep wall slopes in a few bands
-    var tmp = new Uint8Array(N);
-    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
-      i = y * W + x;
-      if (slope[i] > 25 && y > H * 0.06 && y < H * 0.36 && fbm(x * CELL / 620, y * CELL / 1100, 63, 2) > 0.64) tmp[i] = 1;
-    }
-    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
-      i = y * W + x; var r = tmp[i];
-      if (!r) for (var k = 0; k < 4 && !r; k++) {
-        var nx = x + [1, -1, 0, 0][k], ny = y + [0, 0, 1, -1][k];
-        if (nx >= 0 && ny >= 0 && nx < W && ny < H && tmp[ny * W + nx]) r = 1;
-      }
-      rsl[i] = r;
     }
     // sky-view factor from terrain horizons (8 directions, 800 m reach), clipped to [0.45, 1]
     var D8 = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
@@ -128,13 +102,23 @@ var AeroCore = (function () {
         acc += mt / Math.sqrt(1 + mt * mt);
       }
       psi[i] = Math.min(1, Math.max(0.45, 1 - 1.6 * acc / 8));
-      block[i] = (slope[i] > 30 || rsl[i]) ? 1 : 0;
-      hazard[i] = (I[i] < 200 || slope[i] > 18) ? 1 : 0;
+      // Slopes over 25 deg are where recurring slope lineae occur in the canyon; the demo treats every such slope as
+      // restricted. This is a rule, not a map of known RSL sites.
+      rsl[i] = slope[i] > P.slopeRestricted && slope[i] <= P.slopeBlock ? 1 : 0;
+      block[i] = (slope[i] > P.slopeBlock || rsl[i]) ? 1 : 0;
+      hazard[i] = (I[i] < P.sandTI || slope[i] > P.slopeCaution) ? 1 : 0;
+      // ground class for the photo preview: 0 open floor, 1 wall, 2 talus or scarp foot, 6 loose sand
+      land[i] = slope[i] > P.slopeRestricted ? 1 : slope[i] > 12 ? 2 : I[i] < P.sandTI ? 6 : 0;
     }
-    return { z: z, I: I, slope: slope, psi: psi, block: block, hazard: hazard, rsl: rsl, dune: dune, land: land, block0: new Uint8Array(block), hab: HAB.y * W + HAB.x };
+    return { z: z, zAbs: zAbs, zLo: zLo, zHi: zHi, I: I, slope: slope, psi: psi, block: block, hazard: hazard, rsl: rsl, land: land, soilGap: soilGap,
+      hasSoil: hasSoil, tiLo: tiLo, tiHi: tiHi, block0: new Uint8Array(block), hab: hab };
   }
 
-  // metabolic power in watts for a step with sine of slope s, on soil of thermal inertia I, at speed v
+  /**
+   * Metabolic power in watts for one step.
+   * Source: team model [MODEL]. Terms follow NASA TP-2010-216115 (planetary suit metabolic cost) in form; the
+   * coefficients are the team's. s = sine of slope, I = thermal inertia of the cell (TIU), v = speed (m/s).
+   */
   function metWraw(s, I, v) {
     var Wm = P.Wbase + P.c1 * MG * v + P.cup * MG * v * Math.max(0, s) + P.Wsink * Math.pow(P.Ibed / I, P.exp);
     if (s < 0) {
@@ -148,7 +132,24 @@ var AeroCore = (function () {
     var dz = T.z[b] - T.z[a];
     return metWraw(dz / Math.hypot(d, dz), T.I[b], v);
   }
+  /**
+   * Oxygen use model.
+   * Basis: the relation between metabolic rate and oxygen use applied in NASA human-systems documents, including the
+   *   Human Integration Design Handbook, NASA/SP-2010-3407/REV1 (2014). verify: the exact HIDH table for oxygen use
+   *   against metabolic rate has not been checked by the team; see https://www.nasa.gov/hidh/.
+   * Team calibration: 100% O2 EVA suit, 80 kg crew member, 20.2 kJ per standard litre of O2, 0.035 L/min suit leak.
+   *   Standing in the suit = 115 W (1.2 MET); nominal walk about 3.4 MET; design peak 8 MET.
+   * This is OUR model, not a published NASA constant.
+   * Source: team model [MODEL].
+   */
   function flow(Wm) { return P.k * Wm + P.leak; } // L/min STP
+  /** Metabolic equivalent for a power in watts: 1 MET = 1.163 W per kg of body mass. Source: definition of MET. */
+  function met(Wm) { return Wm / (P.wPerMetKg * P.mBody); }
+  /** Oxygen flow in L/min for a metabolic equivalent. Source: team model [MODEL], see flow(). */
+  function flowFromMet(m) { return flow(m * P.wPerMetKg * P.mBody); }
+  /** RAD dose rate conversions. Source: MSL RAD surface average, about 0.64 mSv/day at Gale crater. */
+  function mSvDayToUSvHour(v) { return v * 1000 / 24; }
+  function uSvHourToMSvDay(v) { return v * 24 / 1000; }
   function edge(T, a, b, d, v) {
     var Wm = metW(T, a, b, d, v), len = Math.hypot(d, T.z[b] - T.z[a]), t = len / v;
     return { o2: flow(Wm) * t / 60, t: t, W: Wm, len: len };
@@ -209,19 +210,72 @@ var AeroCore = (function () {
   }
   function beta(F) { return 1 / (1 + P.kappa * F); }
 
-  return { W: W, H: H, CELL: CELL, N: N, P: P, MG: MG, HAB: HAB, MOUND: MOUND, build: build, metW: metW, metWraw: metWraw, flow: flow,
-    edge: edge, dijkstra: dijkstra, chain: chain, beta: beta, sstep: sstep };
+  return { W: W, H: H, CELL: CELL, N: N, P: P, MG: MG, HAB: HAB, build: build, sampleCubic: sampleCubic, metW: metW, metWraw: metWraw, flow: flow, met: met, flowFromMet: flowFromMet,
+    mSvDayToUSvHour: mSvDayToUSvHour, uSvHourToMSvDay: uSvHourToMSvDay,
+    edge: edge, dijkstra: dijkstra, chain: chain, beta: beta };
 })();
-if (typeof module !== 'undefined') module.exports = AeroCore;
 
-if (typeof document !== 'undefined') (function () {
+/* Terrain loader. Every tile is checked against data/manifest.json before the map is built:
+   byte length, value range and, where the browser can compute it, the SHA-256 of the file. */
+var AeroData = (function () {
+  'use strict';
+  /**
+   * Check a raster tile against its manifest entry. Throws an Error that names the first mismatch.
+   * Source: team code; the expected values are written when the tile is cut from the source raster.
+   */
+  function validateTile(buf, tile) {
+    if (!tile || !(tile.width > 0) || !(tile.height > 0)) throw new Error('manifest entry is incomplete');
+    if (!buf || buf.byteLength !== tile.width * tile.height * 4) throw new Error('tile "' + tile.id + '" has ' + (buf ? buf.byteLength : 0) + ' bytes, manifest expects ' + tile.width * tile.height * 4);
+    var a = new Float32Array(buf), lo = Infinity, hi = -Infinity, valid = 0;
+    for (var i = 0; i < a.length; i++) {
+      var v = a[i]; if (v !== v) throw new Error('tile "' + tile.id + '" contains NaN');
+      if (tile.nodata != null && v === tile.nodata) continue;
+      valid++; if (v < lo) lo = v; if (v > hi) hi = v;
+    }
+    if (!valid) throw new Error('tile "' + tile.id + '" has no valid samples');
+    if (lo < tile.valid_min || hi > tile.valid_max) throw new Error('tile "' + tile.id + '" values ' + lo.toFixed(1) + ' to ' + hi.toFixed(1) + ' are outside the manifest range ' + tile.valid_min + ' to ' + tile.valid_max);
+    return a;
+  }
+  function hex(buf) { var b = new Uint8Array(buf), o = ''; for (var i = 0; i < b.length; i++) o += (b[i] < 16 ? '0' : '') + b[i].toString(16); return o; }
+  /** SHA-256 of a buffer as hex, or null when the environment cannot compute it. */
+  function sha256(buf) {
+    if (typeof crypto !== 'undefined' && crypto.subtle) return crypto.subtle.digest('SHA-256', buf).then(hex);
+    return Promise.resolve(null);
+  }
+  function checkHash(buf, tile) {
+    return sha256(buf).then(function (h) {
+      if (h && tile.sha256 && h !== tile.sha256) throw new Error('tile "' + tile.id + '" does not match the manifest checksum');
+      return h !== null;
+    });
+  }
+  function raster(a, tile) { return { width: tile.width, height: tile.height, res: tile.resolution_m, margin: tile.margin_px, minValid: tile.nodata != null ? tile.nodata : -Infinity, data: a }; }
+  /** Load the manifest and the tiles of its region. Rejects when anything fails validation; there is no synthetic fallback. */
+  function load(base) {
+    return fetch(base + 'manifest.json').then(function (r) { if (!r.ok) throw new Error('manifest.json: HTTP ' + r.status); return r.json(); }).then(function (man) {
+      var tiles = man.tiles || [], dem = null, ti = null;
+      tiles.forEach(function (t) { if (t.layer === 'elevation') dem = t; if (t.layer === 'thermal_inertia') ti = t; });
+      if (!dem) throw new Error('the manifest lists no elevation tile');
+      function get(t) {
+        return fetch(base + t.file).then(function (r) { if (!r.ok) throw new Error(t.file + ': HTTP ' + r.status); return r.arrayBuffer(); })
+          .then(function (buf) { var a = validateTile(buf, t); return checkHash(buf, t).then(function (hashed) { return { raster: raster(a, t), hashed: hashed }; }); });
+      }
+      return Promise.all([get(dem), ti ? get(ti) : Promise.resolve(null)]).then(function (r) {
+        return { manifest: man, region: man.region, dem: r[0].raster, ti: r[1] ? r[1].raster : null, hashed: r[0].hashed };
+      });
+    });
+  }
+  return { validateTile: validateTile, sha256: sha256, raster: raster, load: load };
+})();
+if (typeof module !== 'undefined') module.exports = { AeroCore: AeroCore, AeroData: AeroData };
+
+function startAeroMargin(DATA) {
   'use strict';
   var C = AeroCore, W = C.W, H = C.H, CELL = C.CELL, N = C.N, P = C.P, S = 5;
   var $ = function (id) { return document.getElementById(id); };
   var cv = $('map'); if (!cv) return;
   cv.width = W * S; cv.height = H * S;
   var ctx = cv.getContext('2d');
-  var T = C.build();
+  var T = C.build(DATA.dem, DATA.ti), REGION = DATA.region;
   T.cls = new Uint8Array(N);      // safety class per cell: 0 safe (green), 1 caution (yellow), 2 no entry (red)
   T.pen = new Float32Array(N);    // cost multiplier used by the safest-route search
   T.zoneAt = new Int16Array(N);   // index of the crew report covering the cell, or -1
@@ -232,9 +286,33 @@ if (typeof document !== 'undefined') (function () {
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var PEN_TERRAIN = 4;            // safest route: caution terrain costs 4x
 
+  /* ---------- data provenance: every number is either data with a source or the team's model ---------- */
+  var DEM_SRC = 'USGS HRSC+MOLA blended DEM 200 m v2 (NASA MGS MOLA and ESA Mars Express HRSC), interpolated to 40 m cells';
+  var PROV = {
+    dem: ['USGS DEM', 'Elevation data: ' + DEM_SRC + '.'],
+    route: ['MODEL', 'Team route model over the USGS HRSC+MOLA elevation tile. Not an official NASA value.'],
+    o2: ['MODEL', 'Team oxygen model, based on NASA HIDH (NASA/SP-2010-3407/REV1). Not an official NASA value.'],
+    rad: ['MODEL', 'Curiosity RAD average, about 0.64 mSv/day at Gale crater near solar maximum, scaled by sky view from the DEM. Not a global constant.'],
+    soil: T.hasSoil ? ['THEMIS', 'Thermal inertia from the USGS THEMIS quantitative mosaic, 100 m, accuracy about 20%.'] : ['MODEL', 'No per-cell soil data in this build. The model uses one regolith reference value, ' + P.Iref + ' TIU, for every cell.'],
+    sim: ['SIMULATED', 'Simulated in the browser for this demo walk. No real telemetry.'],
+    input: ['INPUT', 'Set by you with the control next to it.'],
+    crew: ['CREW', 'Entered by a crew member in this app. Two sample reports are preloaded.'],
+    pick: ['SIMULATED', 'Illustrative targets. The team picked their positions on the real elevation grid; the geology is not mapped, and the uncertainty values are demo assumptions.'],
+    img: ['HiRISE', 'HiRISE image, NASA/JPL-Caltech/UArizona. Same kind of ground, not a picture of this spot.'],
+    ref: ['REFERENCE', 'Published figure quoted from the source listed under Sources. Not computed here.']
+  };
+  function decorate() { // add a badge with a tooltip, and a source line for the "Show data provenance" switch
+    Array.prototype.forEach.call(document.querySelectorAll('[data-prov]'), function (node) {
+      var pv = PROV[node.getAttribute('data-prov')]; if (!pv || node.querySelector('.pv')) return;
+      var b = el('span', 'pv pv-' + pv[0].toLowerCase().replace(/[^a-z]/g, ''), pv[0]); b.title = pv[1]; b.setAttribute('tabindex', '0');
+      node.appendChild(document.createTextNode(' ')); node.appendChild(b);
+      node.appendChild(el('span', 'pv-src', pv[1]));
+    });
+  }
+
   /* ---------- settings, notifications, sound ---------- */
   var SET_KEY = 'aeromargin.settings.v1';
-  var cfg = { theme: 'dark', sound: true, vol: 0.5, callsign: 'EV-1', stride: 0.6, anim: 1 };
+  var cfg = { theme: 'dark', sound: true, vol: 0.5, callsign: 'EV-1', stride: 0.6, anim: 1, vlang: 'en', prov: false };
   (function () {
     try {
       var o = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
@@ -244,9 +322,11 @@ if (typeof document !== 'undefined') (function () {
       if (typeof o.callsign === 'string' && o.callsign.trim()) cfg.callsign = o.callsign.trim().slice(0, 12);
       if (o.stride >= 0.4 && o.stride <= 0.9) cfg.stride = +o.stride;
       if (o.anim === 1 || o.anim === 2 || o.anim === 4) cfg.anim = o.anim;
+      if (o.vlang === 'ru' || o.vlang === 'en') cfg.vlang = o.vlang;
+      if (typeof o.prov === 'boolean') cfg.prov = o.prov;
     } catch (e) {}
   })();
-  P.stride = cfg.stride;
+  P.stride = cfg.stride; vlang = cfg.vlang;
   function saveCfg() { try { localStorage.setItem(SET_KEY, JSON.stringify(cfg)); } catch (e) {} }
   function cssv(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function toast(text, kind) {
@@ -294,17 +374,18 @@ if (typeof document !== 'undefined') (function () {
     for (var r = 0; r < 30; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       var px = x + dx, py = y + dy; if (px < 1 || py < 1 || px >= W - 1 || py >= H - 1) continue;
-      var i = py * W + px; if (!T.block[i] && T.slope[i] < 12 && T.I[i] > 220) return i;
+      var i = py * W + px; if (!T.block[i] && T.slope[i] < 12) return i;
     }
     return y * W + x;
   }
-  // Science targets are numbered S1 to S5 so that the letters A and B stay free for the route start and destination.
+  // Illustrative science targets. Their positions were picked by the team on the real elevation grid; the geology
+  // is not mapped here, so the table is labelled SIMULATED. S1 to S5 keep A and B free for the route.
   var SCI0 = [
-    { id: 'S1', name: 'Layered sulfates', ru: 'слоистые сульфаты', note: 'Hydrated sulfate layers, a sign of past water', cls: 'sulfate', s2: 4.0, x: 131, y: 96 },
-    { id: 'S2', name: 'Layer contact', ru: 'контакт слоёв', note: 'Where layered deposits meet older rock', cls: 'sulfate', s2: 3.0, x: 171, y: 84 },
-    { id: 'S3', name: 'Block field', ru: 'поле блоков', note: 'Bright 100–500 m blocks in dark material', cls: 'bedrock', s2: 2.0, x: 196, y: 122 },
-    { id: 'S4', name: 'RSL standoff', ru: 'точка наблюдения RSL', note: 'Viewpoint below seasonal slope streaks', cls: 'rsl', s2: 5.0, x: 108, y: 62 },
-    { id: 'S5', name: 'Graben scarp', ru: 'уступ грабена', note: 'Fault trough cutting the canyon floor', cls: 'tectonic', s2: 1.5, x: 104, y: 136 }
+    { id: 'S1', name: 'Scarp foot', ru: 'подножие уступа', note: 'Foot of the lower scarp, east of the airlock', cls: 'wall', s2: 4.0, x: 150, y: 110 },
+    { id: 'S2', name: 'East floor', ru: 'восточная равнина', note: 'Open floor at the far east of the map', cls: 'floor', s2: 3.0, x: 200, y: 120 },
+    { id: 'S3', name: 'Wall bench', ru: 'терраса на стене', note: 'Bench between the two scarps of the wall', cls: 'wall', s2: 2.0, x: 120, y: 60 },
+    { id: 'S4', name: 'Steep-slope standoff', ru: 'точка наблюдения у крутого склона', note: 'Viewpoint under slopes steeper than 25°', cls: 'rsl', s2: 5.0, x: 70, y: 40 },
+    { id: 'S5', name: 'South floor', ru: 'южная равнина', note: 'Low open floor south-east of the airlock', cls: 'floor', s2: 1.5, x: 90, y: 130 }
   ];
   var SCI = [];
   var st = {};
@@ -314,7 +395,7 @@ if (typeof document !== 'undefined') (function () {
   var userLayer = 'safety';
   var mode = 'safe';              // 'safe' = safest route, 'fast' = lowest oxygen cost
   var clickMode = 'B';            // what a map tap sets: 'A', 'B' or 'haz'
-  var vlang = /^(ru|kk|uk|be)/i.test(navigator.language || '') ? 'ru' : 'en';
+  var vlang = cfg.vlang;          // voice bar language: English unless the user picked RU before (saved in settings)
   var lastCode = '', lastD = null, profKey = '', prof = null;
   var view = { z: 1, x: 0, y: 0 };  // map zoom and the top-left corner of the visible part, in canvas pixels
 
@@ -328,8 +409,8 @@ if (typeof document !== 'undefined') (function () {
   };
   var LEVELS = ['', 'Level 1 · caution', 'Level 2 · avoid', 'Level 3 · no entry'];
   var SEEDS = [
-    { id: 'seed-1', x: 74, y: 124, r: 4, type: 'crevasse', level: 3, by: 'EV-2', t: 0, photo: '', seed: true, desc: 'Sample report: open crack about 2 m wide, across the direct line to the graben.' },
-    { id: 'seed-2', x: 90, y: 104, r: 5, type: 'rocks', level: 2, by: 'EV-3', t: 0, photo: '', seed: true, desc: 'Sample report: loose boulders, unstable footing.' }
+    { id: 'seed-1', x: 65, y: 121, r: 4, type: 'crevasse', level: 3, by: 'EV-2', t: 0, photo: '', seed: true, desc: 'Sample report: open crack about 2 m wide, across the direct line to the south floor.' },
+    { id: 'seed-2', x: 95, y: 110, r: 5, type: 'rocks', level: 2, by: 'EV-3', t: 0, photo: '', seed: true, desc: 'Sample report: loose boulders, unstable footing.' }
   ];
   var zones = [], zver = 0, dbState = DB_URL ? 'connecting' : 'local', pendingZones = null;
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
@@ -420,7 +501,7 @@ if (typeof document !== 'undefined') (function () {
     st = { V: 1500 / P.psiPerL, F: 0.2, pos: T.hab, target: -1, sci: null, elapsed: 0, dose: 0, walked: 0, walking: false, msg: '', walkCells: null, walkIdx: 0, ping: -1, pingT: 0, trail: [T.hab], log: [], stopReq: false, scrub: -1 };
     lastCode = ''; profKey = ''; logEvent('EVA started at the airlock with 1,500 psia.');
     st.ema = C.flow(C.metW(T, T.hab, T.hab + 1, CELL, P.vNom));
-    st.W = 0;
+    st.W = P.Wbase; // standing in the suit
     $('tank').value = 1500; $('fat').value = 20;
     outKey = ''; safeKey = '';
   }
@@ -450,16 +531,14 @@ if (typeof document !== 'undefined') (function () {
   var SAFE_RGB = [[70, 150, 96], [222, 196, 84], [200, 52, 44]];
   var LEG = {
     safety: ['Safety zones: green safe, yellow caution, red no entry', 'safe', 'no entry', [SAFE_RGB[0], SAFE_RGB[0], SAFE_RGB[1], SAFE_RGB[2], SAFE_RGB[2]]],
-    relief: ['Synthetic shaded relief', 'low', 'high', RAMPS.relief],
-    slope: ['Slope, degrees', '0°', '25°+', [[70, 150, 96], [222, 196, 84], [226, 128, 52], [200, 52, 44]]],
-    thermal: ['Thermal inertia, TIU', '150 loose sand', '452 bedrock', RAMPS.thermal],
-    rad: ['Dose rate, µSv/h', '12 sheltered', '26.7 open sky', RAMPS.rad],
-    o2: ['O₂ to walk home, litres', '0', '200+', RAMPS.o2]
+    relief: ['Elevation above the areoid, m (HRSC+MOLA DEM, 200 m)', Math.round(T.zLo).toLocaleString('en-US') + ' m', Math.round(T.zHi).toLocaleString('en-US') + ' m', RAMPS.relief],
+    slope: ['Slope, degrees (from the DEM, MODEL)', '0°', '25°+', [[70, 150, 96], [222, 196, 84], [226, 128, 52], [200, 52, 44]]],
+    thermal: T.hasSoil ? ['Thermal inertia, TIU (THEMIS, about ±20%)', Math.round(T.tiLo) + ' TIU', Math.round(T.tiHi) + ' TIU', RAMPS.thermal]
+      : ['Thermal inertia: no per-cell data in this build. Model uses one reference value', P.Iref + ' TIU', P.Iref + ' TIU', [RAMPS.thermal[2], RAMPS.thermal[2]]],
+    rad: ['Dose rate, µSv/h (RAD average × sky view, MODEL)', '12 sheltered', '26.7 open sky', RAMPS.rad],
+    o2: ['O₂ to walk home, litres (MODEL)', '0', '200+', RAMPS.o2]
   };
-  function reliefColor(i) {
-    var zz = T.z[i], c = ramp(RAMPS.relief, zz < 320 ? (zz + 90) / 410 * 0.66 : 0.66 + Math.min(1, (zz - 320) / 1700) * 0.34);
-    var dn = T.dune[i]; return [c[0] + (62 - c[0]) * dn * 0.7, c[1] + (52 - c[1]) * dn * 0.7, c[2] + (56 - c[2]) * dn * 0.7];
-  }
+  function reliefColor(i) { return ramp(RAMPS.relief, (T.zAbs[i] - T.zLo) / (T.zHi - T.zLo)); }
   function paintBase(layer) {
     var img = bctx.createImageData(W, H), d = img.data, Rr = R().dist;
     for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
@@ -474,7 +553,7 @@ if (typeof document !== 'undefined') (function () {
         c = [rc[0] + (sc[0] - rc[0]) * m, rc[1] + (sc[1] - rc[1]) * m, rc[2] + (sc[2] - rc[2]) * m]; k = 0.35 + 0.65 * sh;
       }
       else if (layer === 'slope') { c = ramp(LEG.slope[3], T.slope[i] / 25); k = 0.55 + 0.45 * sh; }
-      else if (layer === 'thermal') { c = ramp(RAMPS.thermal, (T.I[i] - 150) / 302); k = 0.55 + 0.45 * sh; }
+      else if (layer === 'thermal') { c = T.hasSoil ? ramp(RAMPS.thermal, (T.I[i] - T.tiLo) / Math.max(1, T.tiHi - T.tiLo)) : RAMPS.thermal[2]; k = 0.55 + 0.45 * sh; }
       else if (layer === 'rad') { c = ramp(RAMPS.rad, (P.doseRef * T.psi[i] - 12) / 14.7); k = 0.6 + 0.4 * sh; }
       else {
         var e = Rr[i];
@@ -791,12 +870,11 @@ if (typeof document !== 'undefined') (function () {
   /* ---------- panel ---------- */
   function set(id, v) { var e = $(id); if (e && e.textContent !== v) e.textContent = v; }
   function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
-  var LAND = [
-    ['Open canyon floor', 'esp_060148_1610.jpg', 'ESP_060148_1610'], ['Canyon wall', 'psp_004054_1675.jpg', 'PSP_004054_1675'],
-    ['Talus apron under the wall', 'psp_004054_1675.jpg', 'PSP_004054_1675'], ['Layered sulfate mound', 'esp_037494_1685.jpg', 'ESP_037494_1685'],
-    ['Block field', 'psp_004384_1705.jpg', 'PSP_004384_1705'], ['Fault trough (graben)', 'esp_034883_1645.jpg', 'ESP_034883_1645'],
-    ['Dark dunes, loose sand', 'esp_044892_1695.jpg', 'ESP_044892_1695']
-  ];
+  // ground class from the grid (slope and, when present, soil) mapped to an orbital picture of the same kind of ground
+  var LAND = {
+    0: ['Open canyon floor', 'esp_034883_1645.jpg', 'ESP_034883_1645'], 1: ['Canyon wall, slope over 25°', 'psp_004054_1675.jpg', 'PSP_004054_1675'],
+    2: ['Scarp foot and talus, slope 12–25°', 'psp_004384_1705.jpg', 'PSP_004384_1705'], 6: ['Loose sand', 'esp_044892_1695.jpg', 'ESP_044892_1695']
+  };
   var shotsKey = '', warnsKey = '', zlistKey = '';
   function photos(D) {
     var box = $('photos'), list = [], forced = D.shed || D.breach;
@@ -808,11 +886,11 @@ if (typeof document !== 'undefined') (function () {
     }
     var key = list.join('|'); if (key === shotsKey) return; shotsKey = key;
     box.textContent = '';
-    if (!list.length) { box.appendChild(el('p', 'note', 'Build a route to see what the ground looks like at the destination and on the way.')); return; }
+    if (!list.length) { box.appendChild(el('p', 'note', 'Build a route to see what this kind of ground looks like from orbit.')); return; }
     list.forEach(function (it) {
       var L = LAND[it[0]], fig = el('figure'), im = el('img'), cap = el('figcaption');
       im.src = 'img/' + L[1]; im.alt = L[0] + ', seen from orbit'; im.loading = 'lazy';
-      cap.appendChild(el('b', '', it[1] + ': ' + L[0])); cap.appendChild(el('span', '', 'HiRISE ' + L[2] + ', orbital analogue of this landform'));
+      cap.appendChild(el('b', '', it[1] + ': ' + L[0])); cap.appendChild(el('span', '', 'HiRISE ' + L[2] + ', NASA/JPL-Caltech/UArizona. Same kind of ground, not this spot.'));
       fig.appendChild(im); fig.appendChild(cap); box.appendChild(fig);
     });
   }
@@ -881,6 +959,7 @@ if (typeof document !== 'undefined') (function () {
     var band = D.p >= 1200 ? 'ok' : D.p >= 650 ? 'warn' : 'bad';
     var bar = $('tankbar'); bar.style.width = Math.max(2, (D.p - 0) / 2450 * 100) + '%'; bar.className = 'fill b-' + band;
     set('g-flow', st.ema.toFixed(2)); set('g-time', fmtT((st.V - P.reserve) / st.ema * 60));
+    set('g-met', C.met(st.W).toFixed(1)); set('g-w', st.W.toFixed(0));
     set('g-ret', isFinite(D.retHere) ? D.retHere.toFixed(0) : '—'); set('g-margin', (D.margin >= 0 ? '+' : '−') + Math.abs(D.margin).toFixed(0));
     $('g-margin').className = 'num ' + (D.margin > 80 ? 'c-ok' : D.margin > 0 ? 'c-warn' : 'c-bad');
     set('g-beta', D.beta.toFixed(2)); set('g-fat', st.F.toFixed(2));
@@ -952,7 +1031,7 @@ if (typeof document !== 'undefined') (function () {
       rows.forEach(function (r) {
         var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'sci-row' + (st.sci === r.s ? ' on' : '');
         var tag = r.s.done ? 'sampled' : (st.pos === r.s.cell ? 'here' : (r.ok ? r.eo.toFixed(0) + ' L out' : 'locked'));
-        bt.innerHTML = '<span class="badge">' + r.s.id + '</span><span class="nm">' + r.s.name + '</span><span class="mj">' + (r.merj ? (r.merj * 1000).toFixed(1) : '—') + '</span><span class="tg ' + (r.s.done ? '' : r.ok ? 'c-ok' : 'c-bad') + '">' + tag + '</span>';
+        bt.innerHTML = '<span class="badge">' + r.s.id + '</span><span class="nm">' + r.s.name + '</span><span class="mj">' + (r.merj ? (r.merj * 1000).toFixed(1) : '—') + '</span><span class="tg"><span class="pill ' + (r.s.done ? 'slate' : st.pos === r.s.cell ? 'amber' : r.ok ? 'c-ok' : 'c-bad') + '">' + tag + '</span></span>';
         bt.addEventListener('click', function () { if (st.walking) return; st.target = r.s.cell; st.sci = r.s; st.msg = ''; update(); });
         list.appendChild(bt);
       });
@@ -963,12 +1042,13 @@ if (typeof document !== 'undefined') (function () {
     var px = st.pos % W, py = (st.pos / W) | 0;
     var pkt = {
       packet_id: 'DEMO-EVA-' + ('00000' + Math.round(st.elapsed)).slice(-5), crew_id: cfg.callsign,
-      location: { frame: 'local grid, metres from airlock (synthetic terrain)', east_m: (px - C.HAB.x) * CELL, north_m: (C.HAB.y - py) * CELL, elevation_rel_m: +T.z[st.pos].toFixed(1), local_slope_deg: +T.slope[st.pos].toFixed(1), soil_thermal_inertia_tiu: +T.I[st.pos].toFixed(0), sky_view_factor: +T.psi[st.pos].toFixed(2), safety_class: ['SAFE', 'CAUTION', 'NO_ENTRY'][T.cls[st.pos]] },
+      location: { frame: 'local grid, metres from airlock; HRSC+MOLA DEM 200 m, centre ' + REGION.center_lat + ' N, ' + REGION.center_lon_east + ' E', elevation_areoid_m: +T.zAbs[st.pos].toFixed(0), east_m: (px - C.HAB.x) * CELL, north_m: (C.HAB.y - py) * CELL, elevation_rel_m: +T.z[st.pos].toFixed(1), local_slope_deg: +T.slope[st.pos].toFixed(1), soil_thermal_inertia_tiu: +T.I[st.pos].toFixed(0), soil_source: T.soilGap[st.pos] ? 'MODEL reference value' : 'THEMIS', sky_view_factor: +T.psi[st.pos].toFixed(2), safety_class: ['SAFE', 'CAUTION', 'NO_ENTRY'][T.cls[st.pos]] },
       plss_life_support: { o2_primary_pressure_psia: +D.p.toFixed(0), o2_primary_usable_liters_stp: +st.V.toFixed(1), o2_flow_rate_lpm_ema180: +st.ema.toFixed(2), time_remaining_o2_sec: Math.max(0, Math.round((st.V - P.reserve) / st.ema * 60)) },
-      biometrics_and_risk: { metabolic_power_watts: +st.W.toFixed(0), fatigue_index_f: +st.F.toFixed(2), present_bias_beta: +D.beta.toFixed(3), radiation_dose_rate_usv_hr: +(P.doseRef * T.psi[st.pos]).toFixed(1), cumulative_eva_dose_msv: +(st.dose / 1000).toFixed(4) },
+      biometrics_and_risk: { metabolic_power_watts: +st.W.toFixed(0), metabolic_equivalent_met: +C.met(st.W).toFixed(2), fatigue_index_f: +st.F.toFixed(2), present_bias_beta: +D.beta.toFixed(3), radiation_dose_rate_usv_hr: +(P.doseRef * T.psi[st.pos]).toFixed(1), cumulative_eva_dose_msv: +(st.dose / 1000).toFixed(4) },
       navigation_pnr: { distance_to_airlock_m: +home.toFixed(0), optimal_return_path_o2_liters: +D.retHere.toFixed(1), pnr_margin_liters: +D.margin.toFixed(1), hud_state: D.code, hud_cognitive_mode: forced ? 'EGRESS_ONLY' : 'STANDARD_5_LAYER' },
       navigation_route: D.tgt ? { mode: mode === 'safe' ? 'SAFEST' : 'SHORTEST', distance_m: +D.tgt.len.toFixed(0), eta_sec: Math.round(D.tgt.time), steps_estimate: D.tgt.steps, o2_liters: +D.tgt.eo.toFixed(1), caution_ground_m: +D.tgt.caution.toFixed(0), warnings: D.tgt.warns.length } : null,
-      shared_hazard_reports: zones.length
+      shared_hazard_reports: zones.length,
+      provenance: { elevation: 'USGS HRSC+MOLA blended DEM 200 m v2 [DATA]', slope_route_oxygen_time_steps: 'team model [MODEL]', dose_rate: 'MSL RAD average scaled by sky view [MODEL]', tank_clock_fatigue_track: '[SIMULATED]' }
     };
     set('packet', JSON.stringify(pkt, null, 2));
   }
@@ -1018,7 +1098,8 @@ if (typeof document !== 'undefined') (function () {
   }
   function report() {
     var r = {
-      generated: new Date().toISOString(), crew_id: cfg.callsign, terrain: 'synthetic demo grid, 40 m cells',
+      generated: new Date().toISOString(), crew_id: cfg.callsign, terrain: REGION.name + ', ' + REGION.center_lat + ' N ' + REGION.center_lon_east + ' E, USGS HRSC+MOLA blended DEM 200 m v2 interpolated to 40 m cells',
+      provenance: { elevation: 'USGS HRSC+MOLA blended DEM 200 m v2', oxygen_time_steps_routes: 'team model [MODEL]', tank_clock_dose_track: 'simulated in the browser [SIMULATED]', hazard_reports: 'entered by the crew' },
       eva: { clock_sec: Math.round(st.elapsed), walked_m: Math.round(st.walked), o2_usable_liters: +st.V.toFixed(1), tank_psia: Math.round(st.V * P.psiPerL), dose_usv: +st.dose.toFixed(2), fatigue_index: +st.F.toFixed(2), hud_state: lastCode },
       samples: SCI.filter(function (q) { return q.done; }).map(function (q) { return q.id + ' ' + q.name; }),
       log: st.log.slice().reverse().map(function (e) { return { eva_clock_sec: Math.round(e.t), event: e.text }; }),
@@ -1143,7 +1224,7 @@ if (typeof document !== 'undefined') (function () {
       st.msg = 'Back at the airlock with ' + st.V.toFixed(0) + ' L usable.'; sfx('ok'); toast(st.msg, 'ok'); logEvent(st.msg, 'ok');
     });
   });
-  $('reset').addEventListener('click', function () { if (st.walking) return; reset(); view.z = 1; clampView(); update(); toast('EVA reset. Tank refilled, hazard reports kept.'); });
+  $('reset').addEventListener('click', function () { if (st.walking) return; press('#scen button', 'data-scen', ''); reset(); view.z = 1; clampView(); update(); toast('EVA reset. Tank refilled, hazard reports kept.'); });
   $('tank').addEventListener('input', function () { if (st.walking) return; st.V = +this.value / P.psiPerL; update(); });
   $('fat').addEventListener('input', function () { if (st.walking) return; st.F = +this.value / 100; update(); });
   Array.prototype.forEach.call(document.querySelectorAll('[data-layer]'), function (bn) {
@@ -1212,7 +1293,8 @@ if (typeof document !== 'undefined') (function () {
   function openForm(c) {
     draft = { x: c % W, y: (c / W) | 0 };
     $('hzform').hidden = false;
-    set('hz-where', 'Location: ' + ((draft.x - C.HAB.x) * CELL) + ' m east, ' + ((C.HAB.y - draft.y) * CELL) + ' m north of the airlock. Tap the map again to move it.');
+    var de = (draft.x - C.HAB.x) * CELL, dn = (C.HAB.y - draft.y) * CELL;
+    set('hz-where', 'Location: ' + Math.abs(de) + ' m ' + (de < 0 ? 'west' : 'east') + ', ' + Math.abs(dn) + ' m ' + (dn < 0 ? 'south' : 'north') + ' of the airlock. Tap the map again to move it.');
     set('hz-r-out', +$('hz-r').value * CELL + ' m');
   }
   function closeForm() {
@@ -1301,7 +1383,7 @@ if (typeof document !== 'undefined') (function () {
   cv.addEventListener('pointermove', function (ev) {
     var c = cellAt(ev); if (c < 0 || !out) return;
     var eo = out.dist[c], er = R().dist[c], z = zones[T.zoneAt[c]];
-    set('hover', ['Safe', 'Caution', 'No entry'][T.cls[c]] + (z ? ' (' + HZ_TYPES[z.type][0] + ', ' + z.by + ')' : '') + ' · elevation ' + (T.z[c] >= 0 ? '+' : '−') + Math.abs(T.z[c]).toFixed(0) + ' m · slope ' + T.slope[c].toFixed(0) + '° · thermal inertia ' + T.I[c].toFixed(0) + ' · dose ' + (P.doseRef * T.psi[c]).toFixed(1) + ' µSv/h · O₂ there ' + (isFinite(eo) ? eo.toFixed(0) + ' L' : 'n/a') + ' · O₂ home ' + (isFinite(er) ? er.toFixed(0) + ' L' : 'n/a'));
+    set('hover', ['Safe', 'Caution', 'No entry'][T.cls[c]] + (z ? ' (' + HZ_TYPES[z.type][0] + ', ' + z.by + ')' : '') + ' · elevation ' + Math.round(T.zAbs[c]).toLocaleString('en-US') + ' m [USGS DEM], ' + (T.z[c] >= 0 ? '+' : '−') + Math.abs(T.z[c]).toFixed(0) + ' m from the airlock · slope ' + T.slope[c].toFixed(0) + '° [MODEL] · soil ' + (T.soilGap[c] ? 'reference ' + P.Iref + ' TIU [MODEL]' : T.I[c].toFixed(0) + ' TIU [THEMIS]') + ' · dose rate ' + (P.doseRef * T.psi[c]).toFixed(1) + ' µSv/h [MODEL from RAD] · O₂ there ' + (isFinite(eo) ? eo.toFixed(0) + ' L' : 'n/a') + ' · O₂ home ' + (isFinite(er) ? er.toFixed(0) + ' L' : 'n/a') + ' [MODEL]');
   });
 
   /* ---------- voice control (Web Speech API) with a typed fallback ---------- */
@@ -1322,11 +1404,11 @@ if (typeof document !== 'undefined') (function () {
   function findPlace(t) {
     var m = t.match(/(?:^|[^a-zа-я])s\s?([1-5])(?![a-zа-я0-9])/) || t.match(/(?:цел[ьи]|target|объект[ау]?)\s*(?:номер\s*|number\s*)?([1-5])/);
     if (m) return SCI[+m[1] - 1];
-    if (/сульфат|sulfate|sulphate/.test(t)) return SCI[0];
-    if (/контакт|contact/.test(t)) return SCI[1];
-    if (/блок|валун|block|boulder/.test(t)) return SCI[2];
-    if (/rsl|рсл|полос|streak|standoff/.test(t)) return SCI[3];
-    if (/грабен|разлом|уступ|graben|scarp|fault/.test(t)) return SCI[4];
+    if (/террас|bench/.test(t)) return SCI[2];
+    if (/наблюден|крут|rsl|рсл|standoff|steep/.test(t)) return SCI[3];
+    if (/подножи|уступ|scarp/.test(t)) return SCI[0];
+    if (/восточ|east/.test(t)) return SCI[1];
+    if (/южн|south/.test(t)) return SCI[4];
     if (/баз|шлюз|домой|base|airlock|habitat|(?:^|\s)home/.test(t)) return 'hab';
     return null;
   }
@@ -1385,8 +1467,8 @@ if (typeof document !== 'undefined') (function () {
       'Команда не распознана. Попробуйте: построй маршрут до базы, найди безопасный путь, где ближайшая опасная зона, сколько времени займёт дорога, добавить опасную зону.'));
   }
   var CHIPS = {
-    en: ['Route to the layered sulfates', 'Find the safe path', 'Where is the nearest danger zone?', 'How long will it take?', 'Route to base', 'Add hazard zone'],
-    ru: ['Построй маршрут до сульфатов', 'Найди безопасный путь', 'Где находится ближайшая опасная зона?', 'Сколько времени займёт дорога?', 'Построй маршрут до базы', 'Добавить опасную зону']
+    en: ['Route to the scarp foot', 'Find the safe path', 'Where is the nearest danger zone?', 'How long will it take?', 'Route to base', 'Add hazard zone'],
+    ru: ['Построй маршрут до подножия уступа', 'Найди безопасный путь', 'Где находится ближайшая опасная зона?', 'Сколько времени займёт дорога?', 'Построй маршрут до базы', 'Добавить опасную зону']
   };
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, listening = false;
   function voiceUI() {
@@ -1394,6 +1476,7 @@ if (typeof document !== 'undefined') (function () {
     var box = $('chips'); box.textContent = '';
     CHIPS[vlang].forEach(function (c) { var b = el('button', '', c); b.type = 'button'; b.addEventListener('click', function () { $('cmd').value = c; runCmd(c); }); box.appendChild(b); });
     $('cmd').placeholder = Lx('Say or type a command', 'Скажите или введите команду');
+    set('cmd-run', Lx('Run', 'Пуск')); set('speak-l', Lx('Spoken replies', 'Голосовой ответ'));
     set('mic-l', listening ? Lx('Listening… tap to stop', 'Слушаю… нажмите, чтобы остановить') : Lx('Speak', 'Говорить'));
     $('mic').classList.toggle('live', listening);
     $('mic').setAttribute('aria-pressed', listening ? 'true' : 'false');
@@ -1410,7 +1493,7 @@ if (typeof document !== 'undefined') (function () {
   });
   $('cmdform').addEventListener('submit', function (ev) { ev.preventDefault(); runCmd($('cmd').value); });
   Array.prototype.forEach.call(document.querySelectorAll('[data-vlang]'), function (bn) {
-    bn.addEventListener('click', function () { vlang = bn.getAttribute('data-vlang'); voiceUI(); });
+    bn.addEventListener('click', function () { vlang = bn.getAttribute('data-vlang'); cfg.vlang = vlang; saveCfg(); voiceUI(); });
   });
 
   /* ---------- zoom buttons, scenarios, profile, reports, settings ---------- */
@@ -1420,19 +1503,19 @@ if (typeof document !== 'undefined') (function () {
   $('z-me').addEventListener('click', function () { if (view.z < 3) view.z = 3; centerOn(st.pos); redraw(); ping(st.pos); });
 
   var SCEN = {
-    walk: ['Science walk', 'Plan a walk from the airlock to the layered sulfates. Compare the safest and the shortest route.', function () { pickDest(-1, SCI[0]); }],
+    walk: ['Science walk', 'Plan a walk from the airlock to the scarp foot. Compare the safest and the shortest route.', function () { pickDest(-1, SCI[0]); }],
     lowo2: ['Low oxygen', 'Tank at 900 psia. The survival contour is small and far targets are locked.', function () { st.V = 900 / P.psiPerL; $('tank').value = 900; pickDest(-1, SCI[4]); }],
-    tired: ['Tired astronaut', 'Fatigue 0.70 out at the sulfate mound. The HUD hides science and shows only the way home.', function () { st.pos = SCI[0].cell; st.trail = [st.pos]; st.F = 0.7; $('fat').value = 70; }],
-    back: ['Crevasse on the way home', 'Standing at the graben. The route home bends around the reported crevasse.', function () { st.pos = SCI[4].cell; st.trail = [st.pos]; pickDest(T.hab, null); }]
+    tired: ['Tired astronaut', 'Fatigue 0.70 out at the scarp foot. The HUD hides science and shows only the way home.', function () { st.pos = SCI[0].cell; st.trail = [st.pos]; st.F = 0.7; $('fat').value = 70; }],
+    back: ['Crevasse on the way home', 'Standing on the south floor. The route home bends around the reported crevasse.', function () { st.pos = SCI[4].cell; st.trail = [st.pos]; pickDest(T.hab, null); }]
   };
   (function () {
     var box = $('scen');
     Object.keys(SCEN).forEach(function (k) {
-      var b = el('button', '', SCEN[k][0]); b.type = 'button'; b.title = SCEN[k][1];
+      var b = el('button', '', SCEN[k][0]); b.type = 'button'; b.title = SCEN[k][1]; b.setAttribute('data-scen', k); b.setAttribute('aria-pressed', 'false');
       b.addEventListener('click', function () {
         if (st.walking) return;
         closeForm(); reset(); mode = 'safe'; clickMode = 'B'; view.z = 1; clampView(); SCEN[k][2](); st.msg = SCEN[k][1];
-        logEvent('Scenario loaded: ' + SCEN[k][0] + '.'); update(); toast(SCEN[k][0] + ': ' + SCEN[k][1]);
+        press('#scen button', 'data-scen', k); logEvent('Scenario loaded: ' + SCEN[k][0] + '.'); update(); toast(SCEN[k][0] + ': ' + SCEN[k][1]);
       });
       box.appendChild(b);
     });
@@ -1533,10 +1616,21 @@ if (typeof document !== 'undefined') (function () {
     }, { rootMargin: '-45% 0px -50% 0px' });
     Object.keys(links).forEach(function (id) { var sec = $(id); if (sec) io.observe(sec); });
   }
+  document.addEventListener('keydown', function (ev) { // keys 1-6 switch the map layer
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || !/^[1-6]$/.test(ev.key)) return;
+    var t = ev.target, tag = t && t.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+    var bn = document.querySelectorAll('[data-layer]')[+ev.key - 1]; if (bn && !bn.disabled) bn.click();
+  });
   var rsT = 0; window.addEventListener('resize', function () { clearTimeout(rsT); rsT = setTimeout(function () { drawProfile(); drawMx(); }, 120); });
 
+  function provUI() { document.documentElement.classList.toggle('prov-on', cfg.prov); $('prov').checked = cfg.prov; }
+  $('prov').addEventListener('change', function () { cfg.prov = this.checked; saveCfg(); provUI(); });
+  function latTxt(v) { return Math.abs(v).toFixed(2) + '° ' + (v < 0 ? 'S' : 'N'); }
+  set('region', REGION.name + ' · ' + latTxt(REGION.center_lat) + ', ' + REGION.center_lon_east.toFixed(2) + '° E');
+  set('region-data', 'Elevation tile ' + DATA.dem.width + ' × ' + DATA.dem.height + ' samples at ' + DATA.dem.res + ' m, ' + (DATA.hashed ? 'checksum verified against the manifest' : 'size and range verified against the manifest') + '.');
+
   /* ---------- start ---------- */
-  fillSelects(); $('hz-by').value = cfg.callsign;
+  fillSelects(); $('hz-by').value = cfg.callsign; decorate(); provUI();
   if (window.innerWidth < 700 && $('keybox')) $('keybox').open = false;
   zones = loadLocal() || SEEDS.map(cleanZone);
   applyZones(); reset(); clampView(); voiceUI(); settingsUI(); applyTheme(); update(); drawMx();
@@ -1544,4 +1638,16 @@ if (typeof document !== 'undefined') (function () {
   window.addEventListener('storage', function (e) { if (e.key === LS_KEY) { var l = loadLocal(); if (l) setZones(l, true, true); } }); // other tabs
   if (DB_URL) { pull(); setInterval(pull, 8000); }
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { update(); drawMx(); });
-})();
+}
+if (typeof document !== 'undefined') {
+  AeroData.load('data/').then(startAeroMargin).catch(function (err) {
+    // No synthetic fallback: without a validated terrain tile the console stays closed and says why.
+    var box = document.querySelector('.console'), note = document.createElement('div');
+    note.className = 'loadfail'; note.setAttribute('role', 'alert');
+    note.textContent = 'The terrain data could not be loaded or failed validation: ' + (err && err.message ? err.message : err) + '. If you opened index.html straight from disk, start a local web server instead (see README).';
+    if (box && box.parentNode) box.parentNode.insertBefore(note, box);
+    document.documentElement.classList.add('ready');
+    if (window.console) console.error(err);
+  });
+}
+

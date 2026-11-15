@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data &amp; Attribution · AeroMargin</title>
+<meta name="description" content="Every dataset AeroMargin uses or quotes, with its source, product identifier and licence, and what is the team's own model.">
+<script>try{var _s=JSON.parse(localStorage.getItem('aeromargin.settings.v1')||'{}');document.documentElement.setAttribute('data-theme',_s.theme==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#1c1410;--panel:#261b15;--panel-2:#30231b;--line:#4a372c;--ink:#f3e6d6;--muted:#bba591;--gold:#f0b24a;--ok:#7fe0a2;--ice:#69c8e8;--hair:rgba(255,255,255,.07);--zebra:rgba(255,255,255,.02);--code:#f6d7a6;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;--body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+:root[data-theme="light"]{color-scheme:light;--bg:#f3ebe0;--panel:#fcf8f2;--panel-2:#efe4d6;--line:#d9c8b5;--ink:#2b1a12;--muted:#6c5748;--gold:#a35c0a;--ok:#1a7a44;--ice:#16708f;--hair:rgba(0,0,0,.08);--zebra:rgba(0,0,0,.025);--code:#8a4b0a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.6 var(--body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:0 clamp(16px,4vw,40px)}
+header{padding:28px 0 8px}
+a{color:var(--gold);text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.back{font:500 13px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase}
+h1{font:800 clamp(40px,7vw,72px)/.95 var(--display);text-transform:uppercase;letter-spacing:.01em;margin:18px 0 12px}
+h2{font:600 22px/1.25 var(--body);margin:38px 0 12px}
+p{margin:0 0 12px;max-width:74ch}
+.lede{font-size:19px;color:var(--muted)}
+.scroll{overflow-x:auto;border:1px solid var(--line);background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:820px;font-size:15px;line-height:1.45}
+th,td{text-align:left;vertical-align:top;padding:12px 16px;border-bottom:1px solid var(--hair)}
+th{font:500 12px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--panel-2)}
+tbody tr:nth-child(even) td{background:var(--zebra)}
+tbody tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600}
+code{font-family:var(--mono);font-size:.88em;color:var(--code);overflow-wrap:anywhere}
+.pill{display:inline-block;font:600 11.5px/1 var(--mono);padding:5px 9px;border:1px solid currentColor;border-radius:999px;white-space:nowrap}
+.data{color:var(--ok)} .model{color:var(--gold)} .sim{color:var(--ice)} .none{color:var(--muted)}
+.note{border:1px solid var(--line);border-left:3px solid var(--gold);background:var(--panel);padding:14px 16px;margin:18px 0;max-width:80ch}
+ul{padding-left:20px;max-width:74ch} li{margin-bottom:6px}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:15px;margin:0}
+dt{color:var(--muted)} dd{margin:0;font-family:var(--mono);font-size:13.5px;overflow-wrap:anywhere}
+footer{padding:36px 0 56px;color:var(--muted);font-size:14.5px}
+@media (max-width:700px){dl{grid-template-columns:1fr} dt{margin-top:8px}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="back" href="index.html">&larr; Back to AeroMargin</a>
+  <h1>Data &amp; Attribution</h1>
+  <p class="lede">Every number in AeroMargin is one of two things: data from a public dataset, with its source and product identifier, or the team&rsquo;s own model, marked as such. This page lists both.</p>
+  <div class="note"><strong>This project was created for the NASA Space Apps Challenge. NASA does not endorse this product.</strong> It is a student project, not an official NASA product, and carries no NASA insignia.</div>
+</div></header>
+<main><div class="wrap">
+  <h2>Layers</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Layer</th><th>Source</th><th>Product ID / URL</th><th>Licence</th><th>In this build</th></tr></thead>
+    <tbody>
+      <tr><td>Terrain (DEM)</td><td>USGS Astrogeology Science Center. MOLA: NASA Goddard, Mars Global Surveyor. HRSC: DLR, ESA Mars Express.</td><td><code>Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2</code><br><a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m">Mars MGS MOLA - MEX HRSC Blended DEM Global 200m v2</a></td><td>MOLA: CC0 (public domain). HRSC: CC BY-SA 3.0 IGO.</td><td><span class="pill data">DATA</span> A 55 &times; 36 sample window is bundled and loaded.</td></tr>
+      <tr><td>Radiation</td><td>NASA JPL / Southwest Research Institute, MSL RAD on Curiosity.</td><td><a href="https://mars.nasa.gov/msl/spacecraft/instruments/rad/">RAD instrument page</a><br>Hassler et al. (2014), Science 343, 1244797.<br>PDS data set identifier: not checked by the team.</td><td>Public domain (NASA).</td><td><span class="pill model">MODEL</span> One figure, 0.64 mSv/day, scaled by sky view from the DEM.</td></tr>
+      <tr><td>Thermal inertia</td><td>ASU THEMIS, 2001 Mars Odyssey; quantitative mosaic by USGS Astrogeology.</td><td><a href="https://themis.asu.edu/">themis.asu.edu</a><br>Fergason et al. (2006), doi:10.1029/2006JE002735.<br>Quadrangle file for this window: not retrieved.</td><td>See provider terms.</td><td><span class="pill none">NOT LOADED</span> The model uses one reference value, 295 TIU, for every cell.</td></tr>
+      <tr><td>Oxygen model</td><td>Team Cheese Pizza, based on the NASA Human Integration Design Handbook.</td><td><code>NASA/SP-2010-3407/REV1</code><br><a href="https://www.nasa.gov/hidh/">nasa.gov/hidh</a><br>The exact HIDH table was not checked by the team.</td><td>The handbook is public domain. The model and its coefficients are the team&rsquo;s work.</td><td><span class="pill model">MODEL</span> Not an official NASA value.</td></tr>
+      <tr><td>Images</td><td>NASA / JPL-Caltech / University of Arizona, HiRISE on Mars Reconnaissance Orbiter.</td><td><a href="https://hirise.lpl.arizona.edu/PSP_004054_1675">PSP_004054_1675</a>, <a href="https://hirise.lpl.arizona.edu/ESP_044892_1695">ESP_044892_1695</a>, <a href="https://hirise.lpl.arizona.edu/ESP_037494_1685">ESP_037494_1685</a>, <a href="https://hirise.lpl.arizona.edu/PSP_004384_1705">PSP_004384_1705</a>, <a href="https://hirise.lpl.arizona.edu/ESP_034883_1645">ESP_034883_1645</a>, <a href="https://hirise.lpl.arizona.edu/ESP_060148_1610">ESP_060148_1610</a></td><td>Public domain. Credit: NASA/JPL-Caltech/UArizona.</td><td><span class="pill data">IMAGE</span> The same kind of ground, not the mapped spot.</td></tr>
+    </tbody></table></div>
+
+  <h2>The elevation tile</h2>
+  <dl>
+    <dt>Region</dt><dd>Melas Chasma, north wall. Centre 8.83&deg; S, 287.39&deg; E. Map 10.2 &times; 6.4 km.</dd>
+    <dt>Source file</dt><dd>https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif</dd>
+    <dt>Tile</dt><dd>data/terrain/melas/dem.f32 &middot; 55 &times; 36 samples &middot; 200 m &middot; Float32 &middot; metres above the areoid</dd>
+    <dt>Values</dt><dd>&minus;4,461 m to &minus;2,225 m</dd>
+    <dt>SHA-256</dt><dd>c626bcb76f046a059deee7aef6b2957a3c9250ff0976717d0ef6a16a9f2682ca</dd>
+    <dt>How it was cut</dt><dd>tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200 (GDAL, bilinear, on 15 November 2026)</dd>
+    <dt>Check before use</dt><dd>The app compares size, value range and checksum with data/manifest.json and refuses to start on a mismatch.</dd>
+  </dl>
+  <p style="margin-top:14px">Machine-readable list: <a href="data/manifest.json">data/manifest.json</a>. GDAL metadata of the window and of the source file sits next to the tile.</p>
+
+  <h2>What is data, what is model, what is simulated</h2>
+  <ul>
+    <li><span class="pill data">DATA</span> Elevation of every map cell.</li>
+    <li><span class="pill model">MODEL</span> Slope, sky view, safety classes, routes, distance, time, steps, oxygen, the point-of-no-return contour, dose rate and MERJ. These are computed by the team&rsquo;s model from the elevation data.</li>
+    <li><span class="pill sim">SIMULATED</span> The tank, the EVA clock, the walk, the accumulated dose, the fatigue index you set, the telemetry packet, and the science targets S1 to S5, whose positions the team picked on the grid.</li>
+    <li><span class="pill none">CREW</span> Hazard zones are entered in the app. Two are preloaded as samples.</li>
+  </ul>
+
+  <h2>Citations</h2>
+  <ul>
+    <li>Fergason, R. L., Hare, T. M., &amp; Laura, J. (2018). HRSC and MOLA Blended Digital Elevation Model at 200m v2. Astrogeology PDS Annex, U.S. Geological Survey.</li>
+    <li>Hassler, D. M., et al. (2014). Mars&rsquo; surface radiation environment measured with the Mars Science Laboratory&rsquo;s Curiosity rover. Science, 343(6169), 1244797.</li>
+    <li>Fergason, R. L., Christensen, P. R., &amp; Kieffer, H. H. (2006). High-resolution thermal inertia derived from THEMIS. J. Geophys. Res., 111, E12004. doi:10.1029/2006JE002735</li>
+    <li>NASA (2014). Human Integration Design Handbook, NASA/SP-2010-3407/REV1.</li>
+    <li>McEwen, A. S., et al. (2007). Mars Reconnaissance Orbiter&rsquo;s High Resolution Imaging Science Experiment (HiRISE). J. Geophys. Res., 112, E05S02.</li>
+  </ul>
+</div></main>
+<footer><div class="wrap">Team Cheese Pizza &middot; AeroMargin, NASA Space Apps Challenge 2026 &middot; <a href="index.html">Back to the map</a></div></footer>
+</body>
+</html>
