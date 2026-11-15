@@ -21,6 +21,7 @@ yc=R*math.radians(lat)
 print(-wm/2, yc-hm/2, wm/2, yc+hm/2)")
 echo "target window (local equirectangular, metres): $XMIN $YMIN $XMAX $YMAX"
 
+if [ "${SKIP_DEM:-0}" != "1" ]; then
 echo "== DEM"
 gdalinfo -json "/vsicurl/$DEM_URL" > "$OUT/source_dem.gdalinfo.json"
 gdalwarp -q -overwrite -t_srs "$SRS" -te "$XMIN" "$YMIN" "$XMAX" "$YMAX" -tr "$RES" "$RES" -r bilinear -ot Float32 -dstnodata -9999 "/vsicurl/$DEM_URL" "$OUT/dem.tif"
@@ -28,13 +29,21 @@ gdalinfo -json -stats "$OUT/dem.tif" > "$OUT/dem.gdalinfo.json"
 python3 tools/tif_to_f32.py "$OUT/dem.tif" "$OUT/dem.f32"
 echo "$DEM_URL" > "$OUT/dem.source.txt"
 
+fi
+
+if [ "${SKIP_TI:-0}" != "1" ]; then
 echo "== THEMIS thermal inertia"
 : > "$OUT/ti.source.txt"
-for Q in ${TI_QUADS:-30S240E 30S270E 30S300E 00N240E}; do
+for Q in ${TI_QUADS:-30S240E}; do
   URL="$TI_BASE/THEMIS_TI_Mosaic_Quant_${Q}_100mpp.cub"
-  if gdalinfo -json "/vsicurl/$URL" > "$OUT/source_ti_$Q.gdalinfo.json" 2> "$OUT/source_ti_$Q.err"; then
-    echo "opened $URL"
-    if gdalwarp -q -overwrite -t_srs "$SRS" -te "$XMIN" "$YMIN" "$XMAX" "$YMAX" -tr "$TIRES" "$TIRES" -r bilinear -ot Float32 -dstnodata -9999 "/vsicurl/$URL" "$OUT/ti.tif"; then
+  echo "-- $URL"
+  curl -sIL -m 60 "$URL" | grep -i -E "^HTTP|content-length|accept-ranges|location|content-type" || true
+  curl -sL -m 60 -r 0-1023 -o /tmp/head.bin -w "range probe: http %{http_code}, %{size_download} bytes\n" "$URL" || true
+  head -c 600 /tmp/head.bin | tr -c '[:print:]\n' '.' | head -20 || true
+  if timeout 240 gdalinfo -json "/vsicurl/$URL" > "$OUT/source_ti_$Q.gdalinfo.json" 2> "$OUT/source_ti_$Q.err"; then
+    python3 -c "
+import json;d=json.load(open('$OUT/source_ti_$Q.gdalinfo.json'));print('size',d['size'],'gt',d.get('geoTransform'),'corners',d.get('wgs84Extent',d.get('cornerCoordinates')))"
+    if timeout ${TI_TIMEOUT:-600} gdalwarp -overwrite -t_srs "$SRS" -te "$XMIN" "$YMIN" "$XMAX" "$YMAX" -tr "$TIRES" "$TIRES" -r bilinear -ot Float32 -dstnodata -9999 "/vsicurl/$URL" "$OUT/ti.tif"; then
       gdalinfo -json -stats "$OUT/ti.tif" > "$OUT/ti.gdalinfo.json" || true
       VALID=$(python3 -c "
 import json;d=json.load(open('$OUT/ti.gdalinfo.json'));b=d['bands'][0]
@@ -43,10 +52,13 @@ print(b.get('metadata',{}).get('',{}).get('STATISTICS_VALID_PERCENT','0'))")
       if python3 -c "import sys; sys.exit(0 if float('$VALID')>${TI_MIN_VALID:-20} else 1)"; then
         python3 tools/tif_to_f32.py "$OUT/ti.tif" "$OUT/ti.f32"; echo "$URL" > "$OUT/ti.source.txt"; break
       fi
+    else
+      echo "warp failed or timed out for $URL"
     fi
   else
-    echo "could not open $URL"; rm -f "$OUT/source_ti_$Q.gdalinfo.json"
+    echo "could not open $URL"; cat "$OUT/source_ti_$Q.err" | head -5 || true; rm -f "$OUT/source_ti_$Q.gdalinfo.json"
   fi
 done
+fi
 rm -f "$OUT"/*.tif "$OUT"/*.aux.xml "$OUT"/*.err
 ls -la "$OUT"

@@ -12,17 +12,28 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install GDAL
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin && pip install --quiet numpy tifffile
-      - name: Cut the window
+      - name: Elevation window
         run: |
-          gdalinfo --version
           set -o pipefail
-          bash tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200 100 2>&1 | tee fetch.log
-          cp fetch.log data/terrain/melas/
-      - name: Publish to the terrain-data branch
+          SKIP_TI=1 bash tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200 100 2>&1 | tee fetch_dem.log
+          cp fetch_dem.log data/terrain/melas/
+      - name: Publish elevation
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q -b terrain-data
           git add -f data/terrain
-          git commit -q -m "Melas Chasma terrain window from USGS-hosted rasters"
+          git commit -q -m "Melas Chasma elevation window from the USGS HRSC+MOLA blended DEM"
+          git push -f origin terrain-data
+      - name: Thermal inertia window
+        continue-on-error: true
+        timeout-minutes: 14
+        run: |
+          SKIP_DEM=1 bash tools/fetch_terrain.sh melas 287.39 -8.83 11000 7200 200 100 2>&1 | tee fetch_ti.log || true
+          cp fetch_ti.log data/terrain/melas/ || true
+      - name: Publish thermal inertia
+        if: always()
+        run: |
+          git add -f data/terrain
+          git commit -q -m "Melas Chasma thermal inertia window from the USGS THEMIS mosaic" || echo "nothing new"
           git push -f origin terrain-data
