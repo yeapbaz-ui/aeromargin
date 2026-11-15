@@ -1,0 +1,13 @@
+{
+  "name": "aeromargin",
+  "private": true,
+  "version": "1.2.0",
+  "description": "AeroMargin: safe walking routes on Mars terrain with an oxygen margin for the way home. Static site, no build step.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node tools/validate_manifest.mjs && node --test tests/*.test.mjs",
+    "validate": "node tools/validate_manifest.mjs",
+    "serve": "python3 -m http.server 8080"
+  },
+  "engines": { "node": ">=20" }
+}

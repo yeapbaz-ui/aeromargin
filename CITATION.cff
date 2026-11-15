@@ -1,0 +1,64 @@
+cff-version: 1.2.0
+message: "If you use AeroMargin, please cite it and the datasets it builds on."
+title: "AeroMargin: safe walking routes on Mars terrain with an oxygen margin for the way home"
+type: software
+authors:
+  - name: "Team Cheese Pizza"
+repository-code: "https://github.com/yeapbaz-ui/aeromargin"
+url: "https://yeapbaz-ui.github.io/aeromargin/"
+date-released: "2026-11-15"
+version: "1.2.0"
+abstract: "Static web demo for the NASA Space Apps Challenge 2026. Real elevation data for Melas Chasma (USGS HRSC and MOLA blended DEM) with a team model of walking cost, oxygen use and the point of no return. Not an official NASA product."
+references:
+  - type: data
+    title: "HRSC and MOLA Blended Digital Elevation Model at 200m v2"
+    authors:
+      - family-names: Fergason
+        given-names: R. L.
+      - family-names: Hare
+        given-names: T. M.
+      - family-names: Laura
+        given-names: J.
+    year: 2018
+    publisher:
+      name: "Astrogeology PDS Annex, U.S. Geological Survey"
+    url: "https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m"
+    notes: "Product Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2. Loaded by the app as a 55 x 36 sample window."
+  - type: article
+    title: "Mars' surface radiation environment measured with the Mars Science Laboratory's Curiosity rover"
+    authors:
+      - family-names: Hassler
+        given-names: D. M.
+      - name: "MSL Science Team"
+    year: 2014
+    journal: "Science"
+    volume: 343
+    issue: 6169
+    notes: "Article number 1244797. Source of the 0.64 mSv/day reference dose rate."
+  - type: article
+    title: "High-resolution thermal inertia derived from the Thermal Emission Imaging System (THEMIS): Thermal model and applications"
+    authors:
+      - family-names: Fergason
+        given-names: R. L.
+      - family-names: Christensen
+        given-names: P. R.
+      - family-names: Kieffer
+        given-names: H. H.
+    year: 2006
+    journal: "Journal of Geophysical Research"
+    volume: 111
+    doi: "10.1029/2006JE002735"
+    notes: "Referenced only. No THEMIS tile is bundled."
+  - type: report
+    title: "Human Integration Design Handbook (HIDH), Revision 1"
+    authors:
+      - name: "National Aeronautics and Space Administration"
+    year: 2014
+    number: "NASA/SP-2010-3407/REV1"
+    url: "https://www.nasa.gov/hidh/"
+    notes: "Basis of the team's oxygen model. Coefficients are the team's."
+  - type: data
+    title: "HiRISE images PSP_004054_1675, ESP_044892_1695, ESP_037494_1685, PSP_004384_1705, ESP_034883_1645, ESP_060148_1610"
+    authors:
+      - name: "NASA/JPL-Caltech/University of Arizona"
+    url: "https://hirise.lpl.arizona.edu/"
