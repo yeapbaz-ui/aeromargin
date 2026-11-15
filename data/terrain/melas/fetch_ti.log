@@ -1,15 +1,20 @@
 target window (local equirectangular, metres): -5500.0 -526995.5791307939 5500.0 -519795.579130794
 == THEMIS thermal inertia
--- https://astropedia.astrogeology.usgs.gov/download/Mars/Odyssey/THEMIS-Global-Thermal-Inertia-Mosaic/Quantitative-32-Bit/THEMIS_TI_Mosaic_Quant_30S240E_100mpp.cub
+-- directory probes
+## https://planetarymaps.usgs.gov/mosaic/Mars/
+## https://planetarymaps.usgs.gov/mosaic/Mars/THEMIS_controlled_mosaics/
+## https://planetarymaps.usgs.gov/mosaic/
+-- http://astropedia.astrogeology.usgs.gov/download/Mars/Odyssey/THEMIS-Global-Thermal-Inertia-Mosaic/Quantitative-32-Bit/THEMIS_TI_Mosaic_Quant_30S240E_100mpp.cub
 range probe: http 000, 0 bytes
 head: cannot open '/tmp/head.bin' for reading: No such file or directory
-could not open https://astropedia.astrogeology.usgs.gov/download/Mars/Odyssey/THEMIS-Global-Thermal-Inertia-Mosaic/Quantitative-32-Bit/THEMIS_TI_Mosaic_Quant_30S240E_100mpp.cub
-total 36
-drwxr-xr-x 2 runner runner 4096 Nov 15 10:33 .
-drwxr-xr-x 3 runner runner 4096 Nov 15 10:26 ..
--rw-r--r-- 1 runner runner 7920 Nov 15 10:26 dem.f32
--rw-r--r-- 1 runner runner 7312 Nov 15 10:26 dem.gdalinfo.json
--rw-r--r-- 1 runner runner  103 Nov 15 10:26 dem.source.txt
--rw-r--r-- 1 runner runner  529 Nov 15 10:26 fetch_dem.log
--rw-r--r-- 1 runner runner 3792 Nov 15 10:26 source_dem.gdalinfo.json
--rw-r--r-- 1 runner runner    0 Nov 15 10:27 ti.source.txt
+could not open http://astropedia.astrogeology.usgs.gov/download/Mars/Odyssey/THEMIS-Global-Thermal-Inertia-Mosaic/Quantitative-32-Bit/THEMIS_TI_Mosaic_Quant_30S240E_100mpp.cub
+total 40
+drwxr-xr-x 2 runner runner 4096 Nov 15 10:40 .
+drwxr-xr-x 3 runner runner 4096 Nov 15 10:34 ..
+-rw-r--r-- 1 runner runner 7920 Nov 15 10:34 dem.f32
+-rw-r--r-- 1 runner runner 7312 Nov 15 10:34 dem.gdalinfo.json
+-rw-r--r-- 1 runner runner  103 Nov 15 10:34 dem.source.txt
+-rw-r--r-- 1 runner runner  529 Nov 15 10:34 fetch_dem.log
+-rw-r--r-- 1 runner runner 1039 Nov 15 10:34 fetch_ti.log
+-rw-r--r-- 1 runner runner 3792 Nov 15 10:34 source_dem.gdalinfo.json
+-rw-r--r-- 1 runner runner    0 Nov 15 10:34 ti.source.txt

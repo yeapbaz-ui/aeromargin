@@ -10,7 +10,7 @@ NAME=$1; LON=$2; LAT=$3; WM=$4; HM=$5; RES=$6; TIRES=${7:-$6}
 OUT=data/terrain/$NAME; mkdir -p "$OUT"
 R=3396190
 DEM_URL=https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif
-TI_BASE=https://astropedia.astrogeology.usgs.gov/download/Mars/Odyssey/THEMIS-Global-Thermal-Inertia-Mosaic/Quantitative-32-Bit
+TI_BASE=${TI_BASE:-http://astropedia.astrogeology.usgs.gov/download}/Mars/Odyssey/THEMIS-Global-Thermal-Inertia-Mosaic/Quantitative-32-Bit
 export GDAL_HTTP_MAX_RETRY=4 GDAL_HTTP_RETRY_DELAY=3 GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR CPL_VSIL_CURL_CACHE_SIZE=200000000
 
 SRS="+proj=eqc +lat_ts=$LAT +lat_0=0 +lon_0=$LON +R=$R +units=m +no_defs"
@@ -33,6 +33,8 @@ fi
 
 if [ "${SKIP_TI:-0}" != "1" ]; then
 echo "== THEMIS thermal inertia"
+echo "-- directory probes"
+for D in https://planetarymaps.usgs.gov/mosaic/Mars/ https://planetarymaps.usgs.gov/mosaic/Mars/THEMIS_controlled_mosaics/ https://planetarymaps.usgs.gov/mosaic/; do echo "## $D"; curl -sL -m 40 "$D" | grep -o -i 'href="[^"]*' | grep -i -E "themis|therm|TI_|inertia|TES" | head -40 || true; done
 : > "$OUT/ti.source.txt"
 for Q in ${TI_QUADS:-30S240E}; do
   URL="$TI_BASE/THEMIS_TI_Mosaic_Quant_${Q}_100mpp.cub"
