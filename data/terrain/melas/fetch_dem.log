@@ -1,0 +1,10 @@
+target window (local equirectangular, metres): -5500.0 -526995.5791307939 5500.0 -519795.579130794
+== DEM
+data/terrain/melas/dem.f32 (36, 55) -4461.37548828125 -2224.570068359375
+total 32
+drwxr-xr-x 2 runner runner 4096 Nov 15 10:26 .
+drwxr-xr-x 3 runner runner 4096 Nov 15 10:26 ..
+-rw-r--r-- 1 runner runner 7920 Nov 15 10:26 dem.f32
+-rw-r--r-- 1 runner runner 7312 Nov 15 10:26 dem.gdalinfo.json
+-rw-r--r-- 1 runner runner  103 Nov 15 10:26 dem.source.txt
+-rw-r--r-- 1 runner runner 3792 Nov 15 10:26 source_dem.gdalinfo.json
